@@ -1,4 +1,4 @@
-spring.datasource.url={jdbc:mysql://localhost:3306/nutri}
+spring.datasource.url=jdbc:postgresql://localhost:5432/nutri
 spring.datasource.username={your_username}
 spring.datasource.password={your_password}
-spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+spring.datasource.driver-class-name=org.postgresql.Driver
