@@ -12,7 +12,6 @@ public class SwaggerConfig {
     public OpenAPI openAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("NutriUniv API")
-                        .description("NutriUniv 서비스 API 명세서"));
+                        .title("NutriUniv API"));
     }
 }
