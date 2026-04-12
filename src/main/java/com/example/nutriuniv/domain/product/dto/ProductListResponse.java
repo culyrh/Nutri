@@ -1,0 +1,34 @@
+package com.example.nutriuniv.domain.product.dto;
+
+import lombok.Builder;
+import lombok.Getter;
+
+import java.math.BigDecimal;
+
+@Getter
+@Builder
+public class ProductListResponse {
+
+    // 목록 조회 응답 (items 안에 들어가는 것)
+    private Long id;
+    private String name;
+    private String imageUrl;
+    private BigDecimal nutritionScore;
+    private boolean isFavorited;
+    private BrandInfo brand;
+    private CategoryInfo category;
+
+    @Getter
+    @Builder
+    public static class BrandInfo {
+        private Long id;
+        private String name;
+    }
+
+    @Getter
+    @Builder
+    public static class CategoryInfo {
+        private Long id;
+        private String name;
+    }
+}

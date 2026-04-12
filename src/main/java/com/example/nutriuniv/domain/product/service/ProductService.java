@@ -1,0 +1,335 @@
+package com.example.nutriuniv.domain.product.service;
+
+import com.example.nutriuniv.common.exception.CustomException;
+import com.example.nutriuniv.common.exception.ErrorCode;
+import com.example.nutriuniv.domain.category.entity.Category;
+import com.example.nutriuniv.domain.category.repository.CategoryRepository;
+import com.example.nutriuniv.domain.product.dto.*;
+import com.example.nutriuniv.domain.product.entity.Brand;
+import com.example.nutriuniv.domain.product.entity.Product;
+import com.example.nutriuniv.domain.product.entity.ProductNutrient;
+import com.example.nutriuniv.domain.product.repository.BrandRepository;
+import com.example.nutriuniv.domain.product.repository.ProductNutrientRepository;
+import com.example.nutriuniv.domain.product.repository.ProductRepository;
+import com.example.nutriuniv.domain.product.specification.ProductSpecification;
+import jakarta.persistence.EntityManager;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+public class ProductService {
+
+    private static final Set<String> ALLOWED_SORT_VALUES = Set.of("POPULAR", "SCORE", "ACCURACY", "RECOMMENDED");
+    private static final Set<String> ALLOWED_LINK_STATUS = Set.of("LINKED", "UNLINKED", "FAILED");
+
+    private final ProductRepository productRepository;
+    private final ProductNutrientRepository productNutrientRepository;
+    private final BrandRepository brandRepository;
+    private final CategoryRepository categoryRepository;
+    private final EntityManager entityManager;
+
+    // ── 일반 유저: 상품 목록 조회 ─────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public ProductPageResponse getProducts(ProductSearchRequest request, Long userId) {
+
+        if (request.getPage() < 0 || request.getSize() <= 0) {
+            throw new CustomException(ErrorCode.INVALID_QUERY_PARAM);
+        }
+        if (request.getSort() != null && !ALLOWED_SORT_VALUES.contains(request.getSort())) {
+            throw new CustomException(ErrorCode.INVALID_QUERY_PARAM);
+        }
+        validateMinMax(request);
+
+        Specification<Product> spec = Specification
+                .where(ProductSpecification.isActive())
+                .and(ProductSpecification.hasKeyword(request.getKeyword()))
+                .and(ProductSpecification.hasCategory(request.getCategoryId()))
+                .and(ProductSpecification.hasBrand(request.getBrandId()))
+                .and(ProductSpecification.hasMinCalories(request.getMinCalories()))
+                .and(ProductSpecification.hasMaxCalories(request.getMaxCalories()))
+                .and(ProductSpecification.hasMinProtein(request.getMinProtein()))
+                .and(ProductSpecification.hasMaxProtein(request.getMaxProtein()))
+                .and(ProductSpecification.hasMinFat(request.getMinFat()))
+                .and(ProductSpecification.hasMaxFat(request.getMaxFat()))
+                .and(ProductSpecification.hasMinCarbohydrate(request.getMinCarbohydrate()))
+                .and(ProductSpecification.hasMaxCarbohydrate(request.getMaxCarbohydrate()))
+                .and(ProductSpecification.hasMinSugar(request.getMinSugar()))
+                .and(ProductSpecification.hasMaxSugar(request.getMaxSugar()))
+                .and(ProductSpecification.hasMinSodium(request.getMinSodium()))
+                .and(ProductSpecification.hasMaxSodium(request.getMaxSodium()))
+                .and(ProductSpecification.hasMinNutritionScore(request.getMinNutritionScore()))
+                .and(ProductSpecification.hasMaxNutritionScore(request.getMaxNutritionScore()));
+
+        Pageable pageable = PageRequest.of(request.getPage(), request.getSize(), resolveSort(request.getSort()));
+        Page<Product> page = productRepository.findAll(spec, pageable);
+
+        List<ProductListResponse> items = page.getContent().stream()
+                .map(p -> toListResponse(p, userId))
+                .collect(Collectors.toList());
+
+        return ProductPageResponse.builder()
+                .total(page.getTotalElements())
+                .page(request.getPage())
+                .size(request.getSize())
+                .items(items)
+                .build();
+    }
+
+    // ── 일반 유저: 상품 상세 조회 ─────────────────────────────────────────────────
+
+    @Transactional
+    public ProductDetailResponse getProduct(Long productId, Long userId) {
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
+
+        if (!product.isActive()) {
+            throw new CustomException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+
+        product.increaseViewCount();
+
+        // 영양정보 미등록 상품 조회 시 404 반환
+        ProductNutrient nutrient = productNutrientRepository.findById(productId)
+                .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
+
+        return toDetailResponse(product, nutrient, userId);
+    }
+
+    // ── 관리자: 상품 목록 조회 ────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public AdminProductPageResponse getAdminProducts(AdminProductSearchRequest request) {
+
+        if (request.getPage() < 0 || request.getSize() <= 0) {
+            throw new CustomException(ErrorCode.INVALID_QUERY_PARAM);
+        }
+        if (request.getLinkStatus() != null && !ALLOWED_LINK_STATUS.contains(request.getLinkStatus())) {
+            throw new CustomException(ErrorCode.INVALID_QUERY_PARAM);
+        }
+
+        Specification<Product> spec = Specification
+                .where(ProductSpecification.isActiveAdmin(request.getIsActive()))
+                .and(ProductSpecification.hasKeyword(request.getKeyword()))
+                .and(ProductSpecification.hasCategory(request.getCategoryId()))
+                .and(ProductSpecification.hasBrand(request.getBrandId()));
+        // TODO: linkStatus 필터는 CoupangLink 엔티티 구현 후 추가
+
+        Pageable pageable = PageRequest.of(request.getPage(), request.getSize(),
+                Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Product> page = productRepository.findAll(spec, pageable);
+
+        List<AdminProductPageResponse.AdminProductListResponse> items = page.getContent().stream()
+                .map(this::toAdminListResponse)
+                .collect(Collectors.toList());
+
+        return AdminProductPageResponse.builder()
+                .total(page.getTotalElements())
+                .page(request.getPage())
+                .size(request.getSize())
+                .items(items)
+                .build();
+    }
+
+    // ── 관리자: 상품 수정 ─────────────────────────────────────────────────────────
+
+    @Transactional
+    public void updateProduct(Long productId, AdminProductUpdateRequest request) {
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
+
+        Category category = request.getCategoryId() != null
+                ? categoryRepository.findById(request.getCategoryId())
+                .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND, "존재하지 않는 카테고리입니다."))
+                : product.getCategory();
+
+        Brand brand = request.getBrandId() != null
+                ? brandRepository.findById(request.getBrandId())
+                .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND, "존재하지 않는 브랜드입니다."))
+                : product.getBrand();
+
+        String name         = request.getName()           != null ? request.getName()           : product.getName();
+        String imageUrl     = request.getImageUrl()       != null ? request.getImageUrl()       : product.getImageUrl();
+        BigDecimal nutScore = request.getNutritionScore() != null ? request.getNutritionScore() : product.getNutritionScore();
+
+        product.update(name, category, brand, imageUrl, nutScore);
+
+        if (request.getIsActive() != null) {
+            if (request.getIsActive()) product.activate();
+            else product.deactivate();
+        }
+    }
+
+    // ── 관리자: 상품 비활성화 ─────────────────────────────────────────────────────
+
+    @Transactional
+    public void deactivateProduct(Long productId) {
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
+
+        if (!product.isActive()) {
+            throw new CustomException(ErrorCode.STATE_CONFLICT, "이미 비활성화된 상품입니다.");
+        }
+
+        product.deactivate();
+    }
+
+    // ── 관리자: 전체 초기화 ───────────────────────────────────────────────────────
+    // 현재 구현된 테이블만 포함. 추후 도메인 추가 시 해당 테이블도 여기에 추가할 것.
+    //
+    // TODO: 아래 테이블 구현 후 TRUNCATE 목록에 추가
+    //   - coupang_links       (쿠팡 연동 구현 시)
+    //   - user_favorites      (찜 도메인 구현 시)
+    //   - user_compares       (비교 도메인 구현 시)
+    //   - reviews, review_images (리뷰 도메인 구현 시)
+    //   - product_view_logs   (로깅 도메인 구현 시)
+
+    @Transactional
+    public void resetAll() {
+        // 1. product_nutrients (products FK 참조)
+        entityManager.createNativeQuery(
+                "TRUNCATE TABLE product_nutrients RESTART IDENTITY CASCADE"
+        ).executeUpdate();
+
+        // 2. products 본체
+        entityManager.createNativeQuery(
+                "TRUNCATE TABLE products RESTART IDENTITY CASCADE"
+        ).executeUpdate();
+
+        // 3. brands
+        entityManager.createNativeQuery(
+                "TRUNCATE TABLE brands RESTART IDENTITY CASCADE"
+        ).executeUpdate();
+
+        // 4. categories: 셀프 참조(parent_id) 때문에 depth 역순으로 DELETE 후 시퀀스 리셋
+        entityManager.createNativeQuery(
+                "DELETE FROM categories WHERE depth = 3"
+        ).executeUpdate();
+        entityManager.createNativeQuery(
+                "DELETE FROM categories WHERE depth = 2"
+        ).executeUpdate();
+        entityManager.createNativeQuery(
+                "DELETE FROM categories WHERE depth = 1"
+        ).executeUpdate();
+        entityManager.createNativeQuery(
+                "ALTER SEQUENCE categories_id_seq RESTART WITH 1"
+        ).executeUpdate();
+    }
+
+    // ── 검증 헬퍼 ─────────────────────────────────────────────────────────────────
+
+    private void validateMinMax(ProductSearchRequest req) {
+        if (isInvalid(req.getMinCalories(),      req.getMaxCalories())      ||
+                isInvalid(req.getMinProtein(),        req.getMaxProtein())       ||
+                isInvalid(req.getMinFat(),            req.getMaxFat())           ||
+                isInvalid(req.getMinCarbohydrate(),   req.getMaxCarbohydrate())  ||
+                isInvalid(req.getMinSugar(),          req.getMaxSugar())         ||
+                isInvalid(req.getMinSodium(),         req.getMaxSodium())        ||
+                isInvalid(req.getMinNutritionScore(), req.getMaxNutritionScore())) {
+            throw new CustomException(ErrorCode.INVALID_QUERY_PARAM);
+        }
+    }
+
+    private boolean isInvalid(BigDecimal min, BigDecimal max) {
+        return min != null && max != null && min.compareTo(max) > 0;
+    }
+
+    // ── 정렬 변환 ─────────────────────────────────────────────────────────────────
+
+    private Sort resolveSort(String sort) {
+        if (sort == null) return Sort.by(Sort.Direction.DESC, "createdAt");
+        return switch (sort) {
+            case "POPULAR"     -> Sort.by(Sort.Direction.DESC, "viewCount");
+            case "SCORE"       -> Sort.by(Sort.Direction.DESC, "nutritionScore");
+            case "ACCURACY",
+                 "RECOMMENDED" -> Sort.by(Sort.Direction.DESC, "createdAt");   // TODO: 추천순, 정확도순 구현
+            default            -> Sort.by(Sort.Direction.DESC, "createdAt");
+        };
+    }
+
+    // ── 변환 메서드 ───────────────────────────────────────────────────────────────
+
+    private ProductListResponse toListResponse(Product product, Long userId) {
+        return ProductListResponse.builder()
+                .id(product.getId())
+                .name(product.getName())
+                .imageUrl(product.getImageUrl())
+                .nutritionScore(product.getNutritionScore())
+                .isFavorited(false)   // TODO: like 도메인 구현 후 채울 예정
+                .brand(product.getBrand() == null ? null : ProductListResponse.BrandInfo.builder()
+                        .id(product.getBrand().getId())
+                        .name(product.getBrand().getName())
+                        .build())
+                .category(ProductListResponse.CategoryInfo.builder()
+                        .id(product.getCategory().getId())
+                        .name(product.getCategory().getName())
+                        .build())
+                .build();
+    }
+
+    private ProductDetailResponse toDetailResponse(Product product, ProductNutrient nutrient, Long userId) {
+        return ProductDetailResponse.builder()
+                .id(product.getId())
+                .name(product.getName())
+                .imageUrl(product.getImageUrl())
+                .nutritionScore(product.getNutritionScore())
+                .viewCount(product.getViewCount())
+                .isFavorited(false)   // TODO: like 도메인 구현 후 채울 예정
+                .scoreRankPercent(null)   // TODO: 추후 구현
+                .brand(product.getBrand() == null ? null : ProductDetailResponse.BrandInfo.builder()
+                        .id(product.getBrand().getId())
+                        .name(product.getBrand().getName())
+                        .build())
+                .category(ProductDetailResponse.CategoryInfo.builder()
+                        .id(product.getCategory().getId())
+                        .name(product.getCategory().getName())
+                        .build())
+                .nutrients(ProductDetailResponse.NutrientInfo.builder()
+                        .servingSize(nutrient.getServingSize())
+                        .calories(nutrient.getCalories())
+                        .carbohydrate(nutrient.getCarbohydrate())
+                        .sugar(nutrient.getSugar())
+                        .protein(nutrient.getProtein())
+                        .fat(nutrient.getFat())
+                        .saturatedFat(nutrient.getSaturatedFat())
+                        .transFat(nutrient.getTransFat())
+                        .cholesterol(nutrient.getCholesterol())
+                        .sodium(nutrient.getSodium())
+                        .build())
+                .coupang(null)   // TODO: coupang 도메인 구현 후 채울 예정
+                .build();
+    }
+
+    private AdminProductPageResponse.AdminProductListResponse toAdminListResponse(Product product) {
+        return AdminProductPageResponse.AdminProductListResponse.builder()
+                .id(product.getId())
+                .name(product.getName())
+                .isActive(product.isActive())
+                .nutritionScore(product.getNutritionScore())
+                .linkStatus(null)   // TODO: CoupangLink 구현 후 채울 예정
+                .brand(product.getBrand() == null ? null : AdminProductPageResponse.BrandInfo.builder()
+                        .id(product.getBrand().getId())
+                        .name(product.getBrand().getName())
+                        .build())
+                .category(AdminProductPageResponse.CategoryInfo.builder()
+                        .id(product.getCategory().getId())
+                        .name(product.getCategory().getName())
+                        .build())
+                .build();
+    }
+}
