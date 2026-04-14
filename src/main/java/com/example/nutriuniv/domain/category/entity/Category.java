@@ -43,4 +43,24 @@ public class Category {
         c.parent = parent;
         return c;
     }
+
+    // 관리자 등록용 (depth 1~3 공통)
+    public static Category create(String name, int depth, Category parent, int displayOrder) {
+        Category c = new Category();
+        c.name = name;
+        c.depth = depth;
+        c.parent = parent;
+        c.displayOrder = displayOrder;
+        return c;
+    }
+
+    // 관리자 수정용
+    public void update(String name, Integer displayOrder) {
+        if (name != null)         this.name         = name;
+        if (displayOrder != null) this.displayOrder = displayOrder;
+    }
+
+    public void deactivate() {
+        this.isActive = false;
+    }
 }

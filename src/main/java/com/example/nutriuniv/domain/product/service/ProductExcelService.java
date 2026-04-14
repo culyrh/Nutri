@@ -2,13 +2,13 @@ package com.example.nutriuniv.domain.product.service;
 
 import com.example.nutriuniv.common.exception.CustomException;
 import com.example.nutriuniv.common.exception.ErrorCode;
+import com.example.nutriuniv.domain.brand.entity.Brand;
+import com.example.nutriuniv.domain.brand.repository.BrandRepository;
 import com.example.nutriuniv.domain.category.entity.Category;
 import com.example.nutriuniv.domain.category.repository.CategoryRepository;
 import com.example.nutriuniv.domain.product.dto.ProductUploadResponse;
-import com.example.nutriuniv.domain.product.entity.Brand;
 import com.example.nutriuniv.domain.product.entity.Product;
 import com.example.nutriuniv.domain.product.entity.ProductNutrient;
-import com.example.nutriuniv.domain.product.repository.BrandRepository;
 import com.example.nutriuniv.domain.product.repository.ProductNutrientRepository;
 import com.example.nutriuniv.domain.product.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;

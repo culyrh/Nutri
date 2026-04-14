@@ -1,5 +1,6 @@
 package com.example.nutriuniv.domain.product.entity;
 
+import com.example.nutriuniv.domain.brand.entity.Brand;
 import com.example.nutriuniv.domain.category.entity.Category;
 import jakarta.persistence.*;
 import lombok.*;
@@ -55,7 +56,6 @@ public class Product {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // 정적 팩토리
     public static Product create(String name, Category category, Brand brand) {
         Product p = new Product();
         p.name = name;
@@ -64,7 +64,6 @@ public class Product {
         return p;
     }
 
-    // 비즈니스 메서드
     public void increaseViewCount() {
         this.viewCount++;
     }
@@ -77,13 +76,11 @@ public class Product {
         this.isActive = true;
     }
 
-    /** 엑셀 업로드 덮어쓰기용 */
     public void update(Category category, Brand brand) {
         this.category = category;
         this.brand = brand;
     }
 
-    /** 관리자 수정용 */
     public void update(String name, Category category, Brand brand,
                        String imageUrl, BigDecimal nutritionScore) {
         this.name = name;
