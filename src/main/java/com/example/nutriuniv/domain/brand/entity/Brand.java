@@ -1,4 +1,4 @@
-package com.example.nutriuniv.domain.product.entity;
+package com.example.nutriuniv.domain.brand.entity;
 
 import jakarta.persistence.*;
 import lombok.*;

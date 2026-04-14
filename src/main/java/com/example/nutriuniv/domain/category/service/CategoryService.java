@@ -7,7 +7,7 @@ import com.example.nutriuniv.domain.category.dto.CategoryTreeResponse;
 import com.example.nutriuniv.domain.category.dto.CategoryUpdateRequest;
 import com.example.nutriuniv.domain.category.entity.Category;
 import com.example.nutriuniv.domain.category.repository.CategoryRepository;
-import com.example.nutriuniv.domain.product.entity.Brand;
+import com.example.nutriuniv.domain.brand.entity.Brand;
 import com.example.nutriuniv.domain.product.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
