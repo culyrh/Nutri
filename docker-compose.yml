@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: nutriuniv_db
+    environment:
+      POSTGRES_USER: nutriuniv
+      POSTGRES_PASSWORD: nutriuniv1234
+      POSTGRES_DB: nutri
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
