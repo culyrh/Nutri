@@ -62,14 +62,15 @@ public class User {
     private LocalDateTime updatedAt;
 
     public static User create(String oauthProvider, String oauthId,
-                              String name, String gender, LocalDate birthDate) {
+                              String name, String gender, LocalDate birthDate, String email) {
         User u = new User();
         u.oauthProvider = oauthProvider;
         u.oauthId = oauthId;
         u.name = name;
-        u.nickname = name; // 가입 시 name으로 자동설정
+        u.nickname = name;  // 가입 시 name으로 자동 설정
         u.gender = gender;
         u.birthDate = birthDate;
+        u.email = email;
         return u;
     }
 
