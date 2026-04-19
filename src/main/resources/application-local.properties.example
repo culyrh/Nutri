@@ -3,6 +3,12 @@ spring.datasource.username={your_username}
 spring.datasource.password={your_password}
 spring.datasource.driver-class-name=org.postgresql.Driver
 
+# JWT
 jwt.secret={gbase64_encoded_secret_key}
 jwt.access-expiration-ms=600000
 jwt.refresh-expiration-ms=604800000
+
+# GOOGLE OAuth
+google.client-id={your_google_client_id}
+google.client-secret={your_google_client_secret}
+google.redirect-uri={your_redirect_uri}
