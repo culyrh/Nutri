@@ -20,4 +20,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
     // 같은 depth + parent 내 카테고리 중복명 확인
     boolean existsByNameAndDepthAndParentAndIsActiveTrue(String name, int depth, Category parent);
+
+    // 대시보드용 depth별 카테고리 수
+    long countByDepthAndIsActiveTrue(int depth);
 }
