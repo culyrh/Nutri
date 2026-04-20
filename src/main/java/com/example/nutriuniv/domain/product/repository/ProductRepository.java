@@ -31,5 +31,14 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
             "WHERE p.isActive = true AND p.brand IS NOT NULL " +
             "GROUP BY p.brand")
     List<Object[]> findBrandCountAll();
+
+    // 대시보드용
+    long countByIsActiveTrue();
+
+    @Query("SELECT AVG(p.nutritionScore) FROM Product p WHERE p.isActive = true")
+    java.math.BigDecimal findAvgNutritionScore();
+
+    @Query("SELECT MAX(p.updatedAt) FROM Product p WHERE p.isActive = true")
+    java.time.LocalDateTime findLatestUpdatedAt();
 }
 

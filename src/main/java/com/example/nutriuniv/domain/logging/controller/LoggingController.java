@@ -29,7 +29,7 @@ public class LoggingController {
                     "비로그인 시 user_id는 null로 저장됩니다.")
     @PostMapping("/logging/view")
     public ResponseEntity<CommonResponse<Void>> logView(
-            @AuthenticationPrincipal(required = false) UserPrincipal principal,
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestBody ViewLogRequest request,
             HttpServletRequest httpServletRequest) {
 
@@ -38,6 +38,17 @@ public class LoggingController {
         loggingService.logProductView(request, userId, ipAddress);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
+//    @PostMapping("/logging/view")
+//    public ResponseEntity<CommonResponse<Void>> logView(
+//            @AuthenticationPrincipal(required = false) UserPrincipal principal,
+//            @RequestBody ViewLogRequest request,
+//            HttpServletRequest httpServletRequest) {
+//
+//        Long userId = principal != null ? principal.getId() : null;
+//        String ipAddress = resolveClientIp(httpServletRequest);
+//        loggingService.logProductView(request, userId, ipAddress);
+//        return ResponseEntity.ok(CommonResponse.success(null));
+//    }
 
     // POST /logging/search
     @Operation(summary = "검색 로그 기록",
@@ -47,7 +58,7 @@ public class LoggingController {
                     "비로그인 시 user_id는 null로 저장됩니다.")
     @PostMapping("/logging/search")
     public ResponseEntity<CommonResponse<Void>> logSearch(
-            @AuthenticationPrincipal(required = false) UserPrincipal principal,
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestBody SearchLogRequest request) {
 
         Long userId = principal != null ? principal.getId() : null;
@@ -62,4 +73,21 @@ public class LoggingController {
         }
         return ip.split(",")[0].trim();
     }
+//    @PostMapping("/logging/search")
+//    public ResponseEntity<CommonResponse<Void>> logSearch(
+//            @AuthenticationPrincipal(required = false) UserPrincipal principal,
+//            @RequestBody SearchLogRequest request) {
+//
+//        Long userId = principal != null ? principal.getId() : null;
+//        loggingService.logSearch(request, userId);
+//        return ResponseEntity.ok(CommonResponse.success(null));
+//    }
+//
+//    private String resolveClientIp(HttpServletRequest request) {
+//        String ip = request.getHeader("X-Forwarded-For");
+//        if (ip == null || ip.isBlank()) {
+//            return request.getRemoteAddr();
+//        }
+//        return ip.split(",")[0].trim();
+//    }
 }

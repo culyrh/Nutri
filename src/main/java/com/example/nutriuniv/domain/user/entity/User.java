@@ -86,4 +86,8 @@ public class User {
         this.isActive = false;
         this.deletedAt = LocalDateTime.now();
     }
+
+    public void updateRole(String role) {
+        this.role = role;
+    }
 }
