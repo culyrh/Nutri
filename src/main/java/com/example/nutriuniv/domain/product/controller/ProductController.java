@@ -1,6 +1,7 @@
 package com.example.nutriuniv.domain.product.controller;
 
 import com.example.nutriuniv.common.response.CommonResponse;
+import com.example.nutriuniv.common.security.UserPrincipal;
 import com.example.nutriuniv.domain.product.dto.*;
 import com.example.nutriuniv.domain.product.service.ProductExcelService;
 import com.example.nutriuniv.domain.product.service.ProductService;
@@ -10,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,23 +25,27 @@ public class ProductController {
 
     // GET /products
     @Operation(summary = "상품 목록 조회",
-            description = "키워드, 카테고리, 브랜드, 영양소 범위 필터로 상품 목록을 조회합니다.")
+            description = "키워드, 카테고리, 브랜드, 영양소 범위 필터로 상품 목록을 조회합니다. " +
+                    "로그인 시 찜 여부(isFavorited)가 반영됩니다.")
     @GetMapping("/products")
     public ResponseEntity<CommonResponse<ProductPageResponse>> getProducts(
-            @ModelAttribute ProductSearchRequest request) {
+            @ModelAttribute ProductSearchRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
 
-        Long userId = null;   // TODO: 인증 구현 후 SecurityContext에서 꺼낼 예정
+        Long userId = principal != null ? principal.getId() : null;
         return ResponseEntity.ok(CommonResponse.success(productService.getProducts(request, userId)));
     }
 
     // GET /products/{productId}
     @Operation(summary = "상품 상세 조회",
-            description = "상품 ID로 상세 정보를 조회합니다. 조회 시 view_count가 1 증가합니다.")
+            description = "상품 ID로 상세 정보를 조회합니다. 조회 시 view_count가 1 증가합니다. " +
+                    "로그인 시 찜 여부(isFavorited)가 반영됩니다.")
     @GetMapping("/products/{productId}")
     public ResponseEntity<CommonResponse<ProductDetailResponse>> getProduct(
-            @Parameter(description = "상품 ID") @PathVariable Long productId) {
+            @Parameter(description = "상품 ID") @PathVariable Long productId,
+            @AuthenticationPrincipal UserPrincipal principal) {
 
-        Long userId = null;   // TODO: 인증 구현 후 SecurityContext에서 꺼낼 예정
+        Long userId = principal != null ? principal.getId() : null;
         return ResponseEntity.ok(CommonResponse.success(productService.getProduct(productId, userId)));
     }
 
@@ -65,9 +71,8 @@ public class ProductController {
     }
 
     // DELETE /admin/products/reset
-    // /admin/products/{productId} 보다 먼저 선언해야 "reset"이 경로변수로 잡히지 않음
     @Operation(summary = "전체 초기화",
-            description = "상품, 영양정보, 브랜드, 카테고리를 모두 삭제하고 시퀀스(id)를 1로 리셋합니다.")
+            description = "상품, 영양정보, 브랜드, 카테고리, 리뷰, 찜을 모두 삭제하고 시퀀스(id)를 1로 리셋합니다.")
     @DeleteMapping("/admin/products/reset")
     public ResponseEntity<CommonResponse<Void>> resetAll() {
         productService.resetAll();
