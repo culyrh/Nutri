@@ -5,7 +5,7 @@ import com.example.nutriuniv.common.exception.ErrorCode;
 import com.example.nutriuniv.domain.search.dto.PopularKeywordResponse;
 import com.example.nutriuniv.domain.search.dto.RecentKeywordResponse;
 import com.example.nutriuniv.domain.search.repository.PopularKeywordRepository;
-import com.example.nutriuniv.domain.search.repository.SearchLogRepository;
+import com.example.nutriuniv.domain.logging.repository.SearchLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
