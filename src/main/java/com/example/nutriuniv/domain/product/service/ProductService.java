@@ -2,10 +2,11 @@ package com.example.nutriuniv.domain.product.service;
 
 import com.example.nutriuniv.common.exception.CustomException;
 import com.example.nutriuniv.common.exception.ErrorCode;
-import com.example.nutriuniv.domain.category.entity.Category;
-import com.example.nutriuniv.domain.category.repository.CategoryRepository;
 import com.example.nutriuniv.domain.brand.entity.Brand;
 import com.example.nutriuniv.domain.brand.repository.BrandRepository;
+import com.example.nutriuniv.domain.category.entity.Category;
+import com.example.nutriuniv.domain.category.repository.CategoryRepository;
+import com.example.nutriuniv.domain.like.repository.UserFavoriteRepository;
 import com.example.nutriuniv.domain.product.dto.*;
 import com.example.nutriuniv.domain.product.entity.Product;
 import com.example.nutriuniv.domain.product.entity.ProductNutrient;
@@ -38,6 +39,7 @@ public class ProductService {
     private final ProductNutrientRepository productNutrientRepository;
     private final BrandRepository brandRepository;
     private final CategoryRepository categoryRepository;
+    private final UserFavoriteRepository userFavoriteRepository;
     private final EntityManager entityManager;
 
     // ── 일반 유저: 상품 목록 조회 ─────────────────────────────────────────────────
@@ -102,7 +104,6 @@ public class ProductService {
 
         product.increaseViewCount();
 
-        // 영양정보 미등록 상품 조회 시 404 반환
         ProductNutrient nutrient = productNutrientRepository.findById(productId)
                 .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
 
@@ -162,11 +163,11 @@ public class ProductService {
                 .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND, "존재하지 않는 브랜드입니다."))
                 : product.getBrand();
 
-        String name         = request.getName()           != null ? request.getName()           : product.getName();
-        String imageUrl     = request.getImageUrl()       != null ? request.getImageUrl()       : product.getImageUrl();
-        BigDecimal nutScore = request.getNutritionScore() != null ? request.getNutritionScore() : product.getNutritionScore();
+        String name          = request.getName()           != null ? request.getName()           : product.getName();
+        String imageUrl      = request.getImageUrl()       != null ? request.getImageUrl()       : product.getImageUrl();
+        BigDecimal score     = request.getNutritionScore() != null ? request.getNutritionScore() : product.getNutritionScore();
 
-        product.update(name, category, brand, imageUrl, nutScore);
+        product.update(name, category, brand, imageUrl, score);
 
         if (request.getIsActive() != null) {
             if (request.getIsActive()) product.activate();
@@ -190,45 +191,28 @@ public class ProductService {
     }
 
     // ── 관리자: 전체 초기화 ───────────────────────────────────────────────────────
-    // 현재 구현된 테이블만 포함. 추후 도메인 추가 시 해당 테이블도 여기에 추가할 것.
-    //
-    // TODO: 아래 테이블 구현 후 TRUNCATE 목록에 추가
-    //   - coupang_links       (쿠팡 연동 구현 시)
-    //   - user_favorites      (찜 도메인 구현 시)
-    //   - user_compares       (비교 도메인 구현 시)
-    //   - reviews, review_images (리뷰 도메인 구현 시)
-    //   - product_view_logs   (로깅 도메인 구현 시)
 
     @Transactional
     public void resetAll() {
-        // 1. product_nutrients (products FK 참조)
-        entityManager.createNativeQuery(
-                "TRUNCATE TABLE product_nutrients RESTART IDENTITY CASCADE"
-        ).executeUpdate();
+        // 1. review_images → reviews → user_favorites (products FK 참조)
+        entityManager.createNativeQuery("TRUNCATE TABLE review_images RESTART IDENTITY CASCADE").executeUpdate();
+        entityManager.createNativeQuery("TRUNCATE TABLE reviews RESTART IDENTITY CASCADE").executeUpdate();
+        entityManager.createNativeQuery("TRUNCATE TABLE user_favorites RESTART IDENTITY CASCADE").executeUpdate();
 
-        // 2. products 본체
-        entityManager.createNativeQuery(
-                "TRUNCATE TABLE products RESTART IDENTITY CASCADE"
-        ).executeUpdate();
+        // 2. product_nutrients
+        entityManager.createNativeQuery("TRUNCATE TABLE product_nutrients RESTART IDENTITY CASCADE").executeUpdate();
 
-        // 3. brands
-        entityManager.createNativeQuery(
-                "TRUNCATE TABLE brands RESTART IDENTITY CASCADE"
-        ).executeUpdate();
+        // 3. products
+        entityManager.createNativeQuery("TRUNCATE TABLE products RESTART IDENTITY CASCADE").executeUpdate();
 
-        // 4. categories: 셀프 참조(parent_id) 때문에 depth 역순으로 DELETE 후 시퀀스 리셋
-        entityManager.createNativeQuery(
-                "DELETE FROM categories WHERE depth = 3"
-        ).executeUpdate();
-        entityManager.createNativeQuery(
-                "DELETE FROM categories WHERE depth = 2"
-        ).executeUpdate();
-        entityManager.createNativeQuery(
-                "DELETE FROM categories WHERE depth = 1"
-        ).executeUpdate();
-        entityManager.createNativeQuery(
-                "ALTER SEQUENCE categories_id_seq RESTART WITH 1"
-        ).executeUpdate();
+        // 4. brands
+        entityManager.createNativeQuery("TRUNCATE TABLE brands RESTART IDENTITY CASCADE").executeUpdate();
+
+        // 5. categories: 셀프 참조(parent_id) 때문에 depth 역순으로 DELETE 후 시퀀스 리셋
+        entityManager.createNativeQuery("DELETE FROM categories WHERE depth = 3").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM categories WHERE depth = 2").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM categories WHERE depth = 1").executeUpdate();
+        entityManager.createNativeQuery("ALTER SEQUENCE categories_id_seq RESTART WITH 1").executeUpdate();
     }
 
     // ── 검증 헬퍼 ─────────────────────────────────────────────────────────────────
@@ -257,7 +241,7 @@ public class ProductService {
             case "POPULAR"     -> Sort.by(Sort.Direction.DESC, "viewCount");
             case "SCORE"       -> Sort.by(Sort.Direction.DESC, "nutritionScore");
             case "ACCURACY",
-                 "RECOMMENDED" -> Sort.by(Sort.Direction.DESC, "createdAt");   // TODO: 추천순, 정확도순 구현
+                 "RECOMMENDED" -> Sort.by(Sort.Direction.DESC, "createdAt");   // TODO: 추후 구현
             default            -> Sort.by(Sort.Direction.DESC, "createdAt");
         };
     }
@@ -265,12 +249,15 @@ public class ProductService {
     // ── 변환 메서드 ───────────────────────────────────────────────────────────────
 
     private ProductListResponse toListResponse(Product product, Long userId) {
+        boolean favorited = userId != null &&
+                userFavoriteRepository.existsByUserIdAndProductIdAndProductIsActiveTrue(userId, product.getId());
+
         return ProductListResponse.builder()
                 .id(product.getId())
                 .name(product.getName())
                 .imageUrl(product.getImageUrl())
                 .nutritionScore(product.getNutritionScore())
-                .isFavorited(false)   // TODO: like 도메인 구현 후 채울 예정
+                .isFavorited(favorited)
                 .brand(product.getBrand() == null ? null : ProductListResponse.BrandInfo.builder()
                         .id(product.getBrand().getId())
                         .name(product.getBrand().getName())
@@ -283,13 +270,16 @@ public class ProductService {
     }
 
     private ProductDetailResponse toDetailResponse(Product product, ProductNutrient nutrient, Long userId) {
+        boolean favorited = userId != null &&
+                userFavoriteRepository.existsByUserIdAndProductIdAndProductIsActiveTrue(userId, product.getId());
+
         return ProductDetailResponse.builder()
                 .id(product.getId())
                 .name(product.getName())
                 .imageUrl(product.getImageUrl())
                 .nutritionScore(product.getNutritionScore())
                 .viewCount(product.getViewCount())
-                .isFavorited(false)   // TODO: like 도메인 구현 후 채울 예정
+                .isFavorited(favorited)
                 .scoreRankPercent(null)   // TODO: 추후 구현
                 .brand(product.getBrand() == null ? null : ProductDetailResponse.BrandInfo.builder()
                         .id(product.getBrand().getId())
