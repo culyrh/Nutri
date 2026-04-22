@@ -6,6 +6,8 @@ import com.example.nutriuniv.domain.category.entity.Category;
 import com.example.nutriuniv.domain.category.repository.CategoryRepository;
 import com.example.nutriuniv.domain.brand.entity.Brand;
 import com.example.nutriuniv.domain.brand.repository.BrandRepository;
+import com.example.nutriuniv.domain.coupang.entity.CoupangLink;
+import com.example.nutriuniv.domain.coupang.repository.CoupangLinkRepository;
 import com.example.nutriuniv.domain.product.dto.*;
 import com.example.nutriuniv.domain.product.entity.Product;
 import com.example.nutriuniv.domain.product.entity.ProductNutrient;
@@ -39,6 +41,7 @@ public class ProductService {
     private final BrandRepository brandRepository;
     private final CategoryRepository categoryRepository;
     private final EntityManager entityManager;
+    private final CoupangLinkRepository coupangLinkRepository;
 
     // ── 일반 유저: 상품 목록 조회 ─────────────────────────────────────────────────
 
@@ -106,7 +109,9 @@ public class ProductService {
         ProductNutrient nutrient = productNutrientRepository.findById(productId)
                 .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
 
-        return toDetailResponse(product, nutrient, userId);
+        CoupangLink coupangLink = coupangLinkRepository.findByProduct(product).orElse(null);
+
+        return toDetailResponse(product, nutrient, userId, coupangLink);
     }
 
     // ── 관리자: 상품 목록 조회 ────────────────────────────────────────────────────
@@ -193,30 +198,41 @@ public class ProductService {
     // 현재 구현된 테이블만 포함. 추후 도메인 추가 시 해당 테이블도 여기에 추가할 것.
     //
     // TODO: 아래 테이블 구현 후 TRUNCATE 목록에 추가
-    //   - coupang_links       (쿠팡 연동 구현 시)
+    //   - coupang_links       (쿠팡 연동 구현 시) -> 추가 완료
     //   - user_favorites      (찜 도메인 구현 시)
     //   - user_compares       (비교 도메인 구현 시)
     //   - reviews, review_images (리뷰 도메인 구현 시)
-    //   - product_view_logs   (로깅 도메인 구현 시)
+    //   - product_view_logs   (로깅 도메인 구현 시) -> 추가 완료
 
     @Transactional
     public void resetAll() {
-        // 1. product_nutrients (products FK 참조)
+
+        // 1. coupang_links (products FK 참조)
+        entityManager.createNativeQuery(
+                "TRUNCATE TABLE coupang_links RESTART IDENTITY CASCADE"
+        ).executeUpdate();
+
+        // 2. product_view_logs (products FK 참조)
+        entityManager.createNativeQuery(
+                "TRUNCATE TABLE product_view_logs RESTART IDENTITY CASCADE"
+        ).executeUpdate();
+
+        // 3. product_nutrients (products FK 참조)
         entityManager.createNativeQuery(
                 "TRUNCATE TABLE product_nutrients RESTART IDENTITY CASCADE"
         ).executeUpdate();
 
-        // 2. products 본체
+        // 4. products 본체
         entityManager.createNativeQuery(
                 "TRUNCATE TABLE products RESTART IDENTITY CASCADE"
         ).executeUpdate();
 
-        // 3. brands
+        // 5. brands
         entityManager.createNativeQuery(
                 "TRUNCATE TABLE brands RESTART IDENTITY CASCADE"
         ).executeUpdate();
 
-        // 4. categories: 셀프 참조(parent_id) 때문에 depth 역순으로 DELETE 후 시퀀스 리셋
+        // 6. categories: 셀프 참조(parent_id) 때문에 depth 역순으로 DELETE 후 시퀀스 리셋
         entityManager.createNativeQuery(
                 "DELETE FROM categories WHERE depth = 3"
         ).executeUpdate();
@@ -228,6 +244,11 @@ public class ProductService {
         ).executeUpdate();
         entityManager.createNativeQuery(
                 "ALTER SEQUENCE categories_id_seq RESTART WITH 1"
+        ).executeUpdate();
+
+        // 7. search_logs (일단 추가는 함)
+        entityManager.createNativeQuery(
+                "TRUNCATE TABLE search_logs RESTART IDENTITY CASCADE"
         ).executeUpdate();
     }
 
@@ -282,7 +303,7 @@ public class ProductService {
                 .build();
     }
 
-    private ProductDetailResponse toDetailResponse(Product product, ProductNutrient nutrient, Long userId) {
+    private ProductDetailResponse toDetailResponse(Product product, ProductNutrient nutrient, Long userId, CoupangLink coupangLink) {
         return ProductDetailResponse.builder()
                 .id(product.getId())
                 .name(product.getName())
@@ -311,7 +332,16 @@ public class ProductService {
                         .cholesterol(nutrient.getCholesterol())
                         .sodium(nutrient.getSodium())
                         .build())
-                .coupang(null)   // TODO: coupang 도메인 구현 후 채울 예정
+                .coupang(coupangLink == null || !"LINKED".equals(coupangLink.getLinkStatus())
+                        ? null
+                        : ProductDetailResponse.CoupangInfo.builder()
+                        .affiliateUrl(coupangLink.getAffiliateUrl())
+                        .landingUrl(coupangLink.getLandingUrl())
+                        .price(coupangLink.getProductPrice())
+                        .isRocket(coupangLink.getIsRocket())
+                        .isFreeShipping(coupangLink.getIsFreeShipping())
+                        .lastSyncedAt(coupangLink.getLastSyncedAt())
+                        .build())   // TODO: coupang 도메인 구현 후 채울 예정 -> 추가 완료
                 .build();
     }
 
