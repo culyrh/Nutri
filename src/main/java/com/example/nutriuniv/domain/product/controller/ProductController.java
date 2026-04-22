@@ -1,6 +1,7 @@
 package com.example.nutriuniv.domain.product.controller;
 
 import com.example.nutriuniv.common.response.CommonResponse;
+import com.example.nutriuniv.common.security.UserPrincipal;
 import com.example.nutriuniv.domain.product.dto.*;
 import com.example.nutriuniv.domain.product.service.ProductExcelService;
 import com.example.nutriuniv.domain.product.service.ProductService;
@@ -10,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,9 +28,10 @@ public class ProductController {
             description = "키워드, 카테고리, 브랜드, 영양소 범위 필터로 상품 목록을 조회합니다.")
     @GetMapping("/products")
     public ResponseEntity<CommonResponse<ProductPageResponse>> getProducts(
+            @AuthenticationPrincipal UserPrincipal principal,
             @ModelAttribute ProductSearchRequest request) {
 
-        Long userId = null;   // TODO: 인증 구현 후 SecurityContext에서 꺼낼 예정
+        Long userId = principal != null ? principal.getId() : null;
         return ResponseEntity.ok(CommonResponse.success(productService.getProducts(request, userId)));
     }
 
@@ -37,9 +40,10 @@ public class ProductController {
             description = "상품 ID로 상세 정보를 조회합니다. 조회 시 view_count가 1 증가합니다.")
     @GetMapping("/products/{productId}")
     public ResponseEntity<CommonResponse<ProductDetailResponse>> getProduct(
+            @AuthenticationPrincipal UserPrincipal principal,
             @Parameter(description = "상품 ID") @PathVariable Long productId) {
 
-        Long userId = null;   // TODO: 인증 구현 후 SecurityContext에서 꺼낼 예정
+        Long userId = principal != null ? principal.getId() : null;
         return ResponseEntity.ok(CommonResponse.success(productService.getProduct(productId, userId)));
     }
 
