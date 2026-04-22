@@ -307,7 +307,8 @@ public class ProductService {
                 .build();
     }
 
-    private ProductDetailResponse toDetailResponse(Product product, ProductNutrient nutrient, Long userId) {
+    private ProductDetailResponse toDetailResponse(Product product, ProductNutrient nutrient,
+                                                   Long userId, CoupangLink coupangLink) {
         boolean favorited = userId != null &&
                 userFavoriteRepository.existsByUserIdAndProductIdAndProductIsActiveTrue(userId, product.getId());
 
@@ -317,7 +318,7 @@ public class ProductService {
                 .imageUrl(product.getImageUrl())
                 .nutritionScore(product.getNutritionScore())
                 .viewCount(product.getViewCount())
-                .isFavorited(favorited)
+                .isFavorited(favorited)  // like 도메인 구현 후 채울 예정 -> 추가 완료
                 .scoreRankPercent(null)   // TODO: 추후 구현
                 .brand(product.getBrand() == null ? null : ProductDetailResponse.BrandInfo.builder()
                         .id(product.getBrand().getId())
