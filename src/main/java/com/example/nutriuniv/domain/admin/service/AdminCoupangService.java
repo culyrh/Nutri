@@ -5,6 +5,8 @@ import com.example.nutriuniv.common.exception.ErrorCode;
 import com.example.nutriuniv.domain.admin.dto.AdminCoupangLinkPageResponse;
 import com.example.nutriuniv.domain.admin.dto.AdminCoupangLinkResponse;
 import com.example.nutriuniv.domain.admin.dto.AdminCoupangSyncResponse;
+import com.example.nutriuniv.domain.coupang.client.CoupangApiClient;
+import com.example.nutriuniv.domain.coupang.dto.CoupangProductData;
 import com.example.nutriuniv.domain.coupang.entity.CoupangLink;
 import com.example.nutriuniv.domain.coupang.repository.CoupangLinkRepository;
 import com.example.nutriuniv.domain.product.entity.Product;
@@ -30,6 +32,7 @@ public class AdminCoupangService {
 
     private final CoupangLinkRepository coupangLinkRepository;
     private final ProductRepository productRepository;
+    private final CoupangApiClient coupangApiClient;
 
     // ── GET /admin/coupang/links ──────────────────────────────────────────────────
 
@@ -69,18 +72,23 @@ public class AdminCoupangService {
                 .orElseGet(() -> coupangLinkRepository.save(CoupangLink.createDefault(product)));
 
         try {
-            // TODO: 실제 쿠팡 파트너스 API 호출로 교체 필요
-            // 현재는 stub — 실제 연동 시 아래 값들을 API 응답에서 채울 것
-            link.syncSuccess(
-                    null,       // coupangProductId
-                    null,       // coupangProductName
-                    null,       // affiliateUrl
-                    null,       // landingUrl
-                    null,       // coupangImageUrl
-                    null,       // productPrice
-                    null,       // isRocket
-                    null        // isFreeShipping
-            );
+            CoupangProductData data = coupangApiClient.searchProduct(product.getName());
+
+            if (data == null) {
+                log.warn("[CoupangSync] 검색 결과 없음 - productId: {}, keyword: {}", productId, product.getName());
+                link.syncFailed();
+            } else {
+                link.syncSuccess(
+                        String.valueOf(data.getProductId()),  // coupangProductId
+                        data.getProductName(),                // coupangProductName
+                        data.getProductUrl(),                 // affiliateUrl (트래킹 포함)
+                        data.getLandingUrl(),                 // landingUrl
+                        data.getProductImage(),               // coupangImageUrl
+                        data.getProductPrice(),               // productPrice
+                        data.getIsRocket(),                   // isRocket
+                        data.getIsFreeShipping()              // isFreeShipping
+                );
+            }
         } catch (Exception e) {
             log.error("[CoupangSync] 쿠팡 API 연동 실패 - productId: {}, error: {}", productId, e.getMessage());
             link.syncFailed();
