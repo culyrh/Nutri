@@ -157,7 +157,6 @@ public class ProductService {
     public void updateProduct(Long productId, AdminProductUpdateRequest request) {
 
         Product product = productRepository.findById(productId)
-
                 .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND));
 
         Category category = request.getCategoryId() != null
