@@ -58,8 +58,8 @@ public class CoupangApiClient {
 
     // ── 상품 검색 ─────────────────────────────────────────────────────────────────
 
-    public CoupangProductData searchProduct(String keyword) {
-        String queryString = "keyword=" + URLEncoder.encode(keyword, StandardCharsets.UTF_8) + "&limit=1";
+    public CoupangSearchResponse.SearchData searchProduct(String keyword) {
+        String queryString = "keyword=" + URLEncoder.encode(keyword, StandardCharsets.UTF_8) + "&limit=10";
 
         ResponseEntity<CoupangSearchResponse> response = restTemplate.exchange(
                 BASE_URL + SEARCH_PATH + "?" + queryString,
@@ -74,7 +74,7 @@ public class CoupangApiClient {
                 body.getData().getProductData().isEmpty()) {
             return null;
         }
-        return body.getData().getProductData().get(0);
+        return body.getData();
     }
 
     // ── 리포트 조회 ───────────────────────────────────────────────────────────────

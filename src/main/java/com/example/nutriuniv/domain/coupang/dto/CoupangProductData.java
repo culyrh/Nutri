@@ -13,5 +13,4 @@ public class CoupangProductData {
     private Boolean isRocket;
     private Boolean isFreeShipping;
     private String productUrl;   // 파트너스 트래킹 포함 → affiliateUrl로 사용
-    private String landingUrl;
 }
