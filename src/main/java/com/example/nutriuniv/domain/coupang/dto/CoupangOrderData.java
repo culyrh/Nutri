@@ -8,6 +8,5 @@ import lombok.Setter;
 public class CoupangOrderData {
     private String date;
     private String subId;
-    private int orderCount;
     private int gmv;
 }

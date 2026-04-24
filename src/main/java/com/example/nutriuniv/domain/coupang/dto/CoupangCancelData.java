@@ -8,5 +8,4 @@ import lombok.Setter;
 public class CoupangCancelData {
     private String date;
     private String subId;
-    private int cancelCount;
 }

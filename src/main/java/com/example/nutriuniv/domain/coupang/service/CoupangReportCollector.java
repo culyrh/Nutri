@@ -47,14 +47,14 @@ public class CoupangReportCollector {
         Map<String, int[]> orderMap = coupangApiClient.getOrderReport(startDate, endDate)
                 .stream().collect(Collectors.toMap(
                         CoupangOrderData::getDate,
-                        d -> new int[]{d.getOrderCount(), d.getGmv()},
+                        d -> new int[]{1, d.getGmv()},
                         (a, b) -> new int[]{a[0] + b[0], a[1] + b[1]}
                 ));
 
         Map<String, Integer> cancelMap = coupangApiClient.getCancelReport(startDate, endDate)
                 .stream().collect(Collectors.toMap(
                         CoupangCancelData::getDate,
-                        CoupangCancelData::getCancelCount,
+                        d -> 1,
                         Integer::sum
                 ));
 
