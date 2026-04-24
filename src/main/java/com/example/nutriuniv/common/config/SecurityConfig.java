@@ -35,6 +35,7 @@ public class SecurityConfig {
                         .requestMatchers("/search/keywords/popular").permitAll()
                         .requestMatchers(HttpMethod.GET, "/reviews/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
                         // admin
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         // 나머지 인증 필요

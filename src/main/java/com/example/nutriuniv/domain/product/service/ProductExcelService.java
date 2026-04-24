@@ -6,6 +6,11 @@ import com.example.nutriuniv.domain.brand.entity.Brand;
 import com.example.nutriuniv.domain.brand.repository.BrandRepository;
 import com.example.nutriuniv.domain.category.entity.Category;
 import com.example.nutriuniv.domain.category.repository.CategoryRepository;
+import com.example.nutriuniv.domain.coupang.client.CoupangApiClient;
+import com.example.nutriuniv.domain.coupang.dto.CoupangProductData;
+import com.example.nutriuniv.domain.coupang.dto.CoupangSearchResponse;
+import com.example.nutriuniv.domain.coupang.entity.CoupangLink;
+import com.example.nutriuniv.domain.coupang.repository.CoupangLinkRepository;
 import com.example.nutriuniv.domain.product.dto.ProductUploadResponse;
 import com.example.nutriuniv.domain.product.entity.Product;
 import com.example.nutriuniv.domain.product.entity.ProductNutrient;
@@ -32,6 +37,8 @@ public class ProductExcelService {
     private final ProductNutrientRepository productNutrientRepository;
     private final BrandRepository brandRepository;
     private final CategoryRepository categoryRepository;
+    private final CoupangApiClient coupangApiClient;
+    private final CoupangLinkRepository coupangLinkRepository;
 
     // 헤더명 -> 필드 키 매핑 테이블
     // normalize() 처리된 헤더명을 키로 사용 -> 컬럼 순서 무관, 단위 포함 표기 허용
@@ -182,6 +189,42 @@ public class ProductExcelService {
                 parseNutrient(values.get("fiber"))
         );
         productNutrientRepository.save(nutrient);
+
+        mapCoupangLink(product, productName);
+    }
+
+    private void mapCoupangLink(Product product, String keyword) {
+        CoupangLink link = coupangLinkRepository.findByProduct(product)
+                .orElseGet(() -> coupangLinkRepository.save(CoupangLink.createDefault(product)));
+        try {
+            CoupangSearchResponse.SearchData searchData = coupangApiClient.searchProduct(keyword);
+            if (searchData == null) {
+                link.syncFailed();
+                return;
+            }
+            CoupangProductData data = searchData.getProductData().stream()
+                    .filter(p -> p.getProductName() != null && p.getProductName().contains(keyword))
+                    .findFirst()
+                    .orElse(null);
+
+            if (data == null) {
+                link.syncFailed();
+            } else {
+                link.syncSuccess(
+                        String.valueOf(data.getProductId()),
+                        data.getProductName(),
+                        data.getProductUrl(),
+                        searchData.getLandingUrl(),
+                        data.getProductImage(),
+                        data.getProductPrice(),
+                        data.getIsRocket(),
+                        data.getIsFreeShipping()
+                );
+            }
+        } catch (Exception e) {
+            log.warn("[ExcelUpload] 쿠팡 매핑 실패 - keyword: {}, error: {}", keyword, e.getMessage());
+            link.syncFailed();
+        }
     }
 
     // ── 헤더 파싱 ─────────────────────────────────────────────────────────────────
