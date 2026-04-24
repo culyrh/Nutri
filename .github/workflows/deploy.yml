@@ -29,6 +29,9 @@ jobs:
           jwt.secret=$JWT_SECRET
           jwt.access-expiration-ms=600000
           jwt.refresh-expiration-ms=604800000
+          google.client-id=$GOOGLE_CLIENT_ID
+          google.client-secret=$GOOGLE_CLIENT_SECRET
+          google.redirect-uri=$GOOGLE_REDIRECT_URI
           EOF
         env:
           SPRING_DATASOURCE_URL: ${{ secrets.SPRING_DATASOURCE_URL }}
@@ -37,6 +40,9 @@ jobs:
           COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
           COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
