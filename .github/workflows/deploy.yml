@@ -2,7 +2,7 @@ name: Deploy to EC2
 
 on:
   push:
-    branches: [ feat/coupang ]
+    branches: [ main ]
 
 jobs:
   deploy:
