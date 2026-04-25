@@ -21,3 +21,5 @@ kakao.redirect-uri={your_redirect_url}
 # coupang
 coupang.access-key=dummy
 coupang.secret-key=dummy
+
+app.frontend-url={frontend_uri}
