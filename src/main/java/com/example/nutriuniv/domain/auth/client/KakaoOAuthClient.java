@@ -14,32 +14,36 @@ import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
-public class GoogleOAuthClient implements OAuthClient {
+public class KakaoOAuthClient implements OAuthClient {
 
-    @Value("${google.client-id}")
+    @Value("${kakao.client-id}")
     private String clientId;
 
-    @Value("${google.client-secret}")
+    @Value("${kakao.client-secret}")
     private String clientSecret;
 
-    @Value("${google.redirect-uri}")
+    @Value("${kakao.redirect-uri}")
     private String redirectUri;
 
     private final RestTemplate restTemplate;
 
     @Override
     public OAuthProvider getProvider() {
-        return OAuthProvider.GOOGLE;
+        return OAuthProvider.KAKAO;
     }
 
+    /**
+     * 카카오 인가 코드 → access token 교환
+     * POST https://kauth.kakao.com/oauth/token
+     */
     @Override
     public String getAccessToken(String code) {
         MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-        params.add("code", code);
+        params.add("grant_type", "authorization_code");
         params.add("client_id", clientId);
         params.add("client_secret", clientSecret);
         params.add("redirect_uri", redirectUri);
-        params.add("grant_type", "authorization_code");
+        params.add("code", code);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -48,13 +52,28 @@ public class GoogleOAuthClient implements OAuthClient {
 
         try {
             ResponseEntity<Map> response = restTemplate.postForEntity(
-                    "https://oauth2.googleapis.com/token", request, Map.class);
+                    "https://kauth.kakao.com/oauth/token", request, Map.class);
             return (String) response.getBody().get("access_token");
         } catch (Exception e) {
-            throw new CustomException(ErrorCode.LOGIN_FAILED, "구글 토큰 교환에 실패했습니다. 원인: " + e.getMessage());
+            throw new CustomException(ErrorCode.LOGIN_FAILED, "카카오 토큰 교환에 실패했습니다. 원인: " + e.getMessage());
         }
     }
 
+    /**
+     * 카카오 access token → 유저 정보 조회
+     * GET https://kapi.kakao.com/v2/user/me
+     *
+     * 카카오 응답 구조:
+     * {
+     *   "id": 123456789,
+     *   "kakao_account": {
+     *     "email": "user@kakao.com",       // 선택 동의 - null 가능
+     *     "profile": {
+     *       "nickname": "홍길동"            // 선택 동의 - null 가능
+     *     }
+     *   }
+     * }
+     */
     @Override
     public OAuthUserInfo getUserInfo(String accessToken) {
         HttpHeaders headers = new HttpHeaders();
@@ -64,17 +83,28 @@ public class GoogleOAuthClient implements OAuthClient {
 
         try {
             ResponseEntity<Map> response = restTemplate.exchange(
-                    "https://www.googleapis.com/oauth2/v2/userinfo",
+                    "https://kapi.kakao.com/v2/user/me",
                     HttpMethod.GET, request, Map.class);
 
             Map<String, Object> body = response.getBody();
-            return new OAuthUserInfo(
-                    (String) body.get("id"),
-                    (String) body.get("email"),
-                    (String) body.get("name")
-            );
+            String oauthId = String.valueOf(body.get("id")); // Long → String
+
+            Map<String, Object> kakaoAccount = (Map<String, Object>) body.get("kakao_account");
+            String email = null;
+            String name = null;
+
+            if (kakaoAccount != null) {
+                email = (String) kakaoAccount.get("email"); // 선택 동의라 null 가능
+
+                Map<String, Object> profile = (Map<String, Object>) kakaoAccount.get("profile");
+                if (profile != null) {
+                    name = (String) profile.get("nickname");
+                }
+            }
+
+            return new OAuthUserInfo(oauthId, email, name);
         } catch (Exception e) {
-            throw new CustomException(ErrorCode.LOGIN_FAILED, "구글 유저 정보 조회에 실패했습니다.");
+            throw new CustomException(ErrorCode.LOGIN_FAILED, "카카오 유저 정보 조회에 실패했습니다.");
         }
     }
 }

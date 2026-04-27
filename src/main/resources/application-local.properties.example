@@ -12,3 +12,14 @@ jwt.refresh-expiration-ms=604800000
 google.client-id={your_google_client_id}
 google.client-secret={your_google_client_secret}
 google.redirect-uri={your_redirect_uri}
+
+# Kakao OAuth
+kakao.client-id={your_kakao_client_id}
+kakao.client-secret={your_kakao_client_secret}
+kakao.redirect-uri={your_redirect_url}
+
+# coupang
+coupang.access-key=dummy
+coupang.secret-key=dummy
+
+app.frontend-url={frontend_uri}

@@ -10,9 +10,13 @@ import com.example.nutriuniv.domain.auth.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.net.URI;
 
 @Tag(name = "Auth", description = "인증 API")
 @RestController
@@ -22,8 +26,29 @@ public class AuthController {
 
     private final AuthService authService;
 
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
+
+    @Operation(summary = "구글 OAuth 콜백")
+    @GetMapping("/oauth/google")
+    public ResponseEntity<Void> googleCallback(@RequestParam String code) {
+        String redirectUrl = frontendUrl + "?code=" + code + "&provider=GOOGLE";
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(redirectUrl))
+                .build();
+    }
+
+    @Operation(summary = "카카오 OAuth 콜백")
+    @GetMapping("/oauth/kakao")
+    public ResponseEntity<Void> kakaoCallback(@RequestParam String code) {
+        String redirectUrl = frontendUrl + "?code=" + code + "&provider=KAKAO";
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(redirectUrl))
+                .build();
+    }
+
     @Operation(summary = "소셜 로그인",
-            description = "기존회원이면 토큰 반환. 신규회원이면 is_new_user=true + googleEmail + oauthId 반환 (토큰 없음).")
+            description = "기존회원이면 토큰 반환. 신규회원이면 newUser=true + oauthId 반환 (토큰 없음).")
     @PostMapping("/oauth")
     public ResponseEntity<CommonResponse<TokenResponse>> login(@RequestBody OAuthLoginRequest request) {
         return ResponseEntity.ok(CommonResponse.success(authService.login(request)));
