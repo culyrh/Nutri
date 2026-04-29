@@ -12,12 +12,14 @@ import org.springframework.web.client.RestTemplate;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.TimeZone;
 
 @Slf4j
 @Component
@@ -39,17 +41,27 @@ public class CoupangApiClient {
 
     private HttpHeaders createHeaders(String method, String path, String queryString) {
         try {
-            String datetime = new SimpleDateFormat("yyMMddHHmmss").format(new Date());
-            String message = datetime + "\n" + method + "\n" + path + "\n" + queryString;
+            String trimmedSecret = secretKey.trim();
+            String trimmedAccess = accessKey.trim();
+
+            SimpleDateFormat sdf = new SimpleDateFormat("yyMMdd'T'HHmmss'Z'");
+            sdf.setTimeZone(TimeZone.getTimeZone("GMT"));
+            String datetime = sdf.format(new Date());
+            String message = datetime + method + path + queryString;
 
             Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            mac.init(new SecretKeySpec(trimmedSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             String signature = HexFormat.of().formatHex(mac.doFinal(message.getBytes(StandardCharsets.UTF_8)));
 
             HttpHeaders headers = new HttpHeaders();
             headers.set("Authorization",
-                    "CEA algorithm=HmacSHA256, access-key=" + accessKey +
+                    "CEA algorithm=HmacSHA256, access-key=" + trimmedAccess +
                     ", signed-date=" + datetime + ", signature=" + signature);
+
+            log.info("[Coupang] datetime={}", datetime);
+            log.info("[Coupang] message=\n{}", message);
+            log.info("[Coupang] Authorization: {}", headers.getFirst("Authorization"));
+
             return headers;
         } catch (Exception e) {
             throw new RuntimeException("HMAC 서명 생성 실패", e);
@@ -60,9 +72,10 @@ public class CoupangApiClient {
 
     public CoupangSearchResponse.SearchData searchProduct(String keyword) {
         String queryString = "keyword=" + URLEncoder.encode(keyword, StandardCharsets.UTF_8) + "&limit=10";
+        URI uri = URI.create(BASE_URL + SEARCH_PATH + "?" + queryString);
 
         ResponseEntity<CoupangSearchResponse> response = restTemplate.exchange(
-                BASE_URL + SEARCH_PATH + "?" + queryString,
+                uri,
                 HttpMethod.GET,
                 new HttpEntity<>(createHeaders("GET", SEARCH_PATH, queryString)),
                 CoupangSearchResponse.class
