@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -57,7 +58,7 @@ public class AuthController {
     @Operation(summary = "회원가입",
             description = "신규회원이 첫번째 랜딩페이지에서 이름/이메일/성별/생년월일 입력 후 호출. 토큰 반환.")
     @PostMapping("/register")
-    public ResponseEntity<CommonResponse<TokenResponse>> register(@RequestBody RegisterRequest request) {
+    public ResponseEntity<CommonResponse<TokenResponse>> register(@Valid @RequestBody RegisterRequest request) {
         return ResponseEntity.ok(CommonResponse.success(authService.register(request)));
     }
 
