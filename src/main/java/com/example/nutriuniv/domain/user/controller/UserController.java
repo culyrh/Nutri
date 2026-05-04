@@ -55,7 +55,7 @@ public class UserController {
     @PostMapping("/nutrition")
     public ResponseEntity<CommonResponse<Void>> createNutrition(
             @AuthenticationPrincipal UserPrincipal principal,
-            @RequestBody UserNutritionRequest request) {
+            @Valid @RequestBody UserNutritionRequest request) {
         userService.createNutrition(principal.getId(), request);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
@@ -64,7 +64,7 @@ public class UserController {
     @PutMapping("/nutrition")
     public ResponseEntity<CommonResponse<Void>> updateNutrition(
             @AuthenticationPrincipal UserPrincipal principal,
-            @RequestBody UserNutritionRequest request) {
+            @Valid @RequestBody UserNutritionRequest request) {
         userService.updateNutrition(principal.getId(), request);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
