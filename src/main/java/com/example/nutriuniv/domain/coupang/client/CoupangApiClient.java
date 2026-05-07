@@ -82,11 +82,32 @@ public class CoupangApiClient {
         );
 
         CoupangSearchResponse body = response.getBody();
-        if (body == null || !"0".equals(body.getRCode()) ||
-                body.getData() == null || body.getData().getProductData() == null ||
-                body.getData().getProductData().isEmpty()) {
+
+        if (body == null) {
+            log.warn("[Coupang] ❌ 응답 바디 null - keyword: {}", keyword);
             return null;
         }
+
+        // 항상 rCode + rMessage 출력
+        log.info("[Coupang] rCode={}, rMessage={}, keyword={}", body.getRCode(), body.getRMessage(), keyword);
+
+        if (!"0".equals(body.getRCode())) {
+            log.warn("[Coupang] ❌ API 오류 - rCode={}, rMessage={}, keyword={}",
+                    body.getRCode(), body.getRMessage(), keyword);
+            return null;
+        }
+
+        if (body.getData() == null || body.getData().getProductData() == null) {
+            log.warn("[Coupang] ⚠️ 검색 결과 data 없음 - keyword={}", keyword);
+            return null;
+        }
+
+        if (body.getData().getProductData().isEmpty()) {
+            log.warn("[Coupang] ⚠️ 검색 결과 0건 - keyword={}", keyword);
+            return null;
+        }
+
+        log.info("[Coupang] ✅ 검색 성공 - {}건 반환, keyword={}", body.getData().getProductData().size(), keyword);
         return body.getData();
     }
 

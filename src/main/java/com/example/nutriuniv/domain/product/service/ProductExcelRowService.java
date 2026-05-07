@@ -6,11 +6,6 @@ import com.example.nutriuniv.domain.brand.entity.Brand;
 import com.example.nutriuniv.domain.brand.repository.BrandRepository;
 import com.example.nutriuniv.domain.category.entity.Category;
 import com.example.nutriuniv.domain.category.repository.CategoryRepository;
-import com.example.nutriuniv.domain.coupang.client.CoupangApiClient;
-import com.example.nutriuniv.domain.coupang.dto.CoupangProductData;
-import com.example.nutriuniv.domain.coupang.dto.CoupangSearchResponse;
-import com.example.nutriuniv.domain.coupang.entity.CoupangLink;
-import com.example.nutriuniv.domain.coupang.repository.CoupangLinkRepository;
 import com.example.nutriuniv.domain.product.entity.Product;
 import com.example.nutriuniv.domain.product.entity.ProductNutrient;
 import com.example.nutriuniv.domain.product.repository.ProductNutrientRepository;
@@ -33,9 +28,6 @@ public class ProductExcelRowService {
     private final ProductNutrientRepository productNutrientRepository;
     private final BrandRepository brandRepository;
     private final CategoryRepository categoryRepository;
-    private final CoupangApiClient coupangApiClient;
-    private final CoupangLinkRepository coupangLinkRepository;
-
     /**
      * 행 하나를 독립 트랜잭션으로 처리.
      * 실패해도 다른 행 트랜잭션에 영향 없음.
@@ -85,53 +77,19 @@ public class ProductExcelRowService {
                 parseNutrient(values.get("transFat")),
                 parseNutrient(values.get("cholesterol")),
                 parseNutrient(values.get("sodium")),
-                parseNutrient(values.get("fiber"))
+                parseNutrient(values.get("fiber")),
+                parseNutrient(values.get("caloriesPer100g")),
+                parseNutrient(values.get("carbohydratePer100g")),
+                parseNutrient(values.get("sugarPer100g")),
+                parseNutrient(values.get("proteinPer100g")),
+                parseNutrient(values.get("fatPer100g")),
+                parseNutrient(values.get("saturatedFatPer100g")),
+                parseNutrient(values.get("transFatPer100g")),
+                parseNutrient(values.get("cholesterolPer100g")),
+                parseNutrient(values.get("sodiumPer100g")),
+                parseNutrient(values.get("fiberPer100g"))
         );
         productNutrientRepository.save(nutrient);
-
-        mapCoupangLink(product, productName);
-    }
-
-    private void mapCoupangLink(Product product, String keyword) {
-        CoupangLink link = coupangLinkRepository.findByProduct(product)
-                .orElseGet(() -> coupangLinkRepository.save(CoupangLink.createDefault(product)));
-        try {
-            CoupangSearchResponse.SearchData searchData = coupangApiClient.searchProduct(keyword);
-            if (searchData == null) {
-                link.syncFailed();
-                return;
-            }
-            String normalizedKeyword = normalize(keyword);
-            CoupangProductData data = searchData.getProductData().stream()
-                    .filter(p -> p.getProductName() != null
-                            && normalize(p.getProductName()).contains(normalizedKeyword))
-                    .findFirst()
-                    .orElse(null);
-
-            if (data == null) {
-                link.syncFailed();
-            } else {
-                link.syncSuccess(
-                        String.valueOf(data.getProductId()),
-                        data.getProductName(),
-                        data.getProductUrl(),
-                        searchData.getLandingUrl(),
-                        data.getProductImage(),
-                        data.getProductPrice(),
-                        data.getIsRocket(),
-                        data.getIsFreeShipping()
-                );
-                product.updateImageUrl(data.getProductImage());
-            }
-        } catch (Exception e) {
-            log.warn("[ExcelUpload] 쿠팡 매핑 실패 - keyword: {}, error: {}", keyword, e.getMessage());
-            link.syncFailed();
-        }
-    }
-
-    private String normalize(String s) {
-        if (s == null) return "";
-        return s.replaceAll("[^\\p{L}\\p{N}]", "").toLowerCase();
     }
 
     private BigDecimal parseNutrient(String raw) {

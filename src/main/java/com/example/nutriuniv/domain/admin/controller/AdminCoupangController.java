@@ -1,6 +1,7 @@
 package com.example.nutriuniv.domain.admin.controller;
 
 import com.example.nutriuniv.common.response.CommonResponse;
+import com.example.nutriuniv.domain.admin.dto.AdminCoupangBulkSyncResponse;
 import com.example.nutriuniv.domain.admin.dto.AdminCoupangLinkPageResponse;
 import com.example.nutriuniv.domain.admin.dto.AdminCoupangSyncResponse;
 import com.example.nutriuniv.domain.admin.service.AdminCoupangService;
@@ -34,9 +35,28 @@ public class AdminCoupangController {
                 adminCoupangService.getCoupangLinks(status, page, size)));
     }
 
+    // POST /admin/coupang/sync
+    @Operation(summary = "쿠팡 링크 일괄 매핑",
+            description = "UNLINKED 상태인 전체 상품을 쿠팡 파트너스 API로 매핑합니다. " +
+                    "API 제한(분당 50회) 대비 여유있게 2초 간격으로 처리합니다.")
+    @PostMapping("/admin/coupang/sync")
+    public ResponseEntity<CommonResponse<AdminCoupangBulkSyncResponse>> bulkSyncCoupangLinks() {
+        return ResponseEntity.ok(CommonResponse.success(
+                adminCoupangService.bulkSyncCoupangLinks()));
+    }
+
+    // POST /admin/coupang/retry
+    @Operation(summary = "쿠팡 링크 일괄 재시도",
+            description = "FAILED 상태인 전체 상품을 재시도합니다. 2초 간격으로 처리합니다.")
+    @PostMapping("/admin/coupang/retry")
+    public ResponseEntity<CommonResponse<AdminCoupangBulkSyncResponse>> retryCoupangLinks() {
+        return ResponseEntity.ok(CommonResponse.success(
+                adminCoupangService.retryCoupangLinks()));
+    }
+
     // POST /admin/coupang/sync/{productId}
-    @Operation(summary = "쿠팡 링크 수동 갱신",
-            description = "특정 상품의 쿠팡 파트너스 링크를 갱신합니다. " +
+    @Operation(summary = "쿠팡 링크 단건 매핑",
+            description = "특정 상품의 쿠팡 파트너스 링크를 매핑합니다. " +
                     "API 실패 시 link_status=FAILED로 저장됩니다.")
     @PostMapping("/admin/coupang/sync/{productId}")
     public ResponseEntity<CommonResponse<AdminCoupangSyncResponse>> syncCoupangLink(

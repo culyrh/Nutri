@@ -28,10 +28,11 @@ public class RecommendationCache {
     @Column(name = "product_id", nullable = false)
     private Long productId;
 
-    @Column(nullable = false, precision = 6, scale = 4)
+    @Column(nullable = false, precision = 10, scale = 4)
     private BigDecimal score;
 
     @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false,
+            columnDefinition = "TIMESTAMP DEFAULT NOW()")
     private LocalDateTime createdAt;
 }

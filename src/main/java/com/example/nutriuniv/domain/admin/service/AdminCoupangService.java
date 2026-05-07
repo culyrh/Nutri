@@ -2,6 +2,7 @@ package com.example.nutriuniv.domain.admin.service;
 
 import com.example.nutriuniv.common.exception.CustomException;
 import com.example.nutriuniv.common.exception.ErrorCode;
+import com.example.nutriuniv.domain.admin.dto.AdminCoupangBulkSyncResponse;
 import com.example.nutriuniv.domain.admin.dto.AdminCoupangLinkPageResponse;
 import com.example.nutriuniv.domain.admin.dto.AdminCoupangLinkResponse;
 import com.example.nutriuniv.domain.admin.dto.AdminCoupangSyncResponse;
@@ -86,7 +87,11 @@ public class AdminCoupangService {
                         .orElse(null);
 
                 if (data == null) {
-                    log.warn("[CoupangSync] 상품명 포함 결과 없음 - productId: {}, keyword: {}", productId, product.getName());
+                    List<String> candidates = searchData.getProductData().stream()
+                            .map(CoupangProductData::getProductName)
+                            .collect(Collectors.toList());
+                    log.warn("[CoupangSync] 상품명 불일치 - productId: {}, keyword: {}, 쿠팡 반환 목록: {}",
+                            productId, product.getName(), candidates);
                     link.syncFailed();
                 } else {
                     link.syncSuccess(
@@ -107,5 +112,92 @@ public class AdminCoupangService {
         }
 
         return AdminCoupangSyncResponse.from(link);
+    }
+
+    // ── POST /admin/coupang/sync ──────────────────────────────────────────────────
+
+    public AdminCoupangBulkSyncResponse bulkSyncCoupangLinks() {
+        List<CoupangLink> targets = coupangLinkRepository.findAllByLinkStatus("UNLINKED");
+        log.info("[CoupangBulkSync] UNLINKED 매핑 대상 수: {}", targets.size());
+        return processBulk(targets, "CoupangBulkSync");
+    }
+
+    // ── POST /admin/coupang/retry ─────────────────────────────────────────────────
+
+    public AdminCoupangBulkSyncResponse retryCoupangLinks() {
+        List<CoupangLink> targets = coupangLinkRepository.findAllByLinkStatus("FAILED");
+        log.info("[CoupangRetry] FAILED 재시도 대상 수: {}", targets.size());
+        return processBulk(targets, "CoupangRetry");
+    }
+
+    // ── 공통 매핑 처리 ─────────────────────────────────────────────────────────────
+
+    private AdminCoupangBulkSyncResponse processBulk(List<CoupangLink> targets, String logTag) {
+        int successCount = 0;
+        int failCount    = 0;
+
+        for (CoupangLink link : targets) {
+            try {
+                Thread.sleep(3000); // 분당 30회 → 제한(50회) 대비 여유있게
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+
+            try {
+                Product product = link.getProduct();
+                CoupangSearchResponse.SearchData searchData = coupangApiClient.searchProduct(product.getName());
+
+                if (searchData == null) {
+                    log.warn("[{}] 검색 결과 없음 - productId: {}, keyword: {}", logTag, product.getId(), product.getName());
+                    link.syncFailed();
+                    failCount++;
+                } else {
+                    CoupangProductData data = searchData.getProductData().stream()
+                            .filter(p -> p.getProductName() != null &&
+                                         p.getProductName().contains(product.getName()))
+                            .findFirst()
+                            .orElse(null);
+
+                    if (data == null) {
+                        List<String> candidates = searchData.getProductData().stream()
+                                .map(CoupangProductData::getProductName)
+                                .collect(Collectors.toList());
+                        log.warn("[{}] 상품명 불일치 - productId: {}, keyword: {}, 쿠팡 반환 목록: {}",
+                                logTag, product.getId(), product.getName(), candidates);
+                        link.syncFailed();
+                        failCount++;
+                    } else {
+                        link.syncSuccess(
+                                String.valueOf(data.getProductId()),
+                                data.getProductName(),
+                                data.getProductUrl(),
+                                searchData.getLandingUrl(),
+                                data.getProductImage(),
+                                data.getProductPrice(),
+                                data.getIsRocket(),
+                                data.getIsFreeShipping()
+                        );
+                        product.updateImageUrl(data.getProductImage());
+                        successCount++;
+                        log.info("[{}] 매핑 성공 - productId: {}, name: {}", logTag, product.getId(), product.getName());
+                    }
+                }
+                coupangLinkRepository.save(link);
+
+            } catch (Exception e) {
+                log.error("[{}] 예외 발생 - productId: {}, error: {}", logTag, link.getProduct().getId(), e.getMessage());
+                link.syncFailed();
+                failCount++;
+                coupangLinkRepository.save(link);
+            }
+        }
+
+        log.info("[{}] 완료 - 성공: {}, 실패: {}", logTag, successCount, failCount);
+        return AdminCoupangBulkSyncResponse.builder()
+                .totalCount(targets.size())
+                .successCount(successCount)
+                .failCount(failCount)
+                .build();
     }
 }
