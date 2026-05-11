@@ -9,6 +9,7 @@ import java.util.List;
 @Setter
 public class CoupangSearchResponse {
     private String rCode;
+    private String rMessage;
     private SearchData data;
 
     @Getter

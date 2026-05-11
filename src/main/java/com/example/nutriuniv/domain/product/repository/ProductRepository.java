@@ -47,5 +47,13 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     @EntityGraph(attributePaths = {"coupangLink"})
     Page<Product> findAll(Specification<Product> spec, Pageable pageable);
+
+    // 추천 API — CF/콘텐츠 결과 ID 목록으로 상품 일괄 조회
+    @EntityGraph(attributePaths = {"brand", "category"})
+    List<Product> findByIdInAndIsActiveTrue(List<Long> ids);
+
+    // 추천 API — 인기순 폴백
+    @EntityGraph(attributePaths = {"brand", "category"})
+    List<Product> findTopByIsActiveTrueOrderByViewCountDesc(Pageable pageable);
 }
 

@@ -1,0 +1,168 @@
+package com.example.nutriuniv.domain.recommendation.service;
+
+import com.example.nutriuniv.domain.like.repository.UserFavoriteRepository;
+import com.example.nutriuniv.domain.product.entity.Product;
+import com.example.nutriuniv.domain.product.repository.ProductRepository;
+import com.example.nutriuniv.domain.recommendation.dto.RecommendationResponse;
+import com.example.nutriuniv.domain.recommendation.dto.RecommendationResponse.RecommendationItem;
+import com.example.nutriuniv.domain.recommendation.entity.RecommendationCache;
+import com.example.nutriuniv.domain.recommendation.repository.ProductVectorByDietRepository;
+import com.example.nutriuniv.domain.recommendation.repository.RecommendationCacheRepository;
+import com.example.nutriuniv.domain.user.entity.UserNutrition;
+import com.example.nutriuniv.domain.user.repository.UserNutritionRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class RecommendationService {
+
+    private static final int DEFAULT_LIMIT = 20;
+
+    // diet_purpose별 이상적인 영양 프로필 벡터 (10차원)
+    // 순서: calories, carbohydrate, sugar, protein, fat,
+    //       saturated_fat, trans_fat, cholesterol, sodium, dietary_fiber
+    private static final Map<String, String> TARGET_VECTORS = Map.of(
+            "DIET",      "[0.1,0.3,0.1,0.5,0.1,0.1,0.0,0.2,0.2,0.8]",
+            "BULK",      "[0.8,0.7,0.3,0.9,0.3,0.2,0.0,0.2,0.4,0.3]",
+            "LEAN_MASS", "[0.5,0.3,0.2,0.9,0.2,0.1,0.0,0.2,0.3,0.5]",
+            "HEALTHY",   "[0.3,0.4,0.1,0.5,0.2,0.1,0.0,0.1,0.1,0.7]",
+            "OTHER",     "[0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5]"
+    );
+
+    private final RecommendationCacheRepository recommendationCacheRepository;
+    private final ProductVectorByDietRepository productVectorByDietRepository;
+    private final ProductRepository productRepository;
+    private final UserNutritionRepository userNutritionRepository;
+    private final UserFavoriteRepository userFavoriteRepository;
+
+    public RecommendationResponse getRecommendations(Long userId) {
+
+        // 1단계: CF — recommendation_cache에 결과가 있으면 반환
+        List<RecommendationCache> cfCache = recommendationCacheRepository
+                .findByUserIdOrderByScoreDesc(userId);
+        if (!cfCache.isEmpty()) {
+            return buildCfResponse(cfCache, userId);
+        }
+
+        // 2단계: 콘텐츠 기반 — diet_purpose로 영양소 벡터 유사도 추천
+        Optional<UserNutrition> nutrition = userNutritionRepository.findByUserId(userId);
+        if (nutrition.isPresent()) {
+            String dietPurpose = nutrition.get().getDietPurpose();
+            String targetVector = TARGET_VECTORS.getOrDefault(dietPurpose, TARGET_VECTORS.get("OTHER"));
+            List<Long> productIds = productVectorByDietRepository
+                    .findTopProductIdsByDietPurpose(dietPurpose, targetVector, DEFAULT_LIMIT);
+            if (!productIds.isEmpty()) {
+                return buildContentResponse(productIds, userId);
+            }
+        }
+
+        // 3단계: 인기순 폴백
+        return buildPopularResponse(userId);
+    }
+
+    // ── CF 응답 ───────────────────────────────────────────────────────────────────
+
+    private RecommendationResponse buildCfResponse(List<RecommendationCache> cfCache, Long userId) {
+        Map<Long, Double> scoreByProductId = cfCache.stream()
+                .collect(Collectors.toMap(
+                        RecommendationCache::getProductId,
+                        c -> c.getScore().doubleValue()
+                ));
+
+        List<Long> productIds = cfCache.stream()
+                .map(RecommendationCache::getProductId)
+                .collect(Collectors.toList());
+
+        List<Product> products = productRepository.findByIdInAndIsActiveTrue(productIds);
+        Set<Long> favoritedIds = getFavoritedIds(userId);
+
+        // CF 스코어 순서 유지
+        Map<Long, Product> productMap = products.stream()
+                .collect(Collectors.toMap(Product::getId, p -> p));
+
+        List<RecommendationItem> items = productIds.stream()
+                .filter(productMap::containsKey)
+                .map(id -> toItem(productMap.get(id), favoritedIds, scoreByProductId.get(id)))
+                .collect(Collectors.toList());
+
+        return RecommendationResponse.builder()
+                .type("CF")
+                .items(items)
+                .build();
+    }
+
+    // ── 콘텐츠 기반 응답 ──────────────────────────────────────────────────────────
+
+    private RecommendationResponse buildContentResponse(List<Long> productIds, Long userId) {
+        List<Product> products = productRepository.findByIdInAndIsActiveTrue(productIds);
+        Set<Long> favoritedIds = getFavoritedIds(userId);
+
+        // 코사인 유사도 쿼리 순서 유지
+        Map<Long, Product> productMap = products.stream()
+                .collect(Collectors.toMap(Product::getId, p -> p));
+
+        List<RecommendationItem> items = productIds.stream()
+                .filter(productMap::containsKey)
+                .map(id -> toItem(productMap.get(id), favoritedIds, null))
+                .collect(Collectors.toList());
+
+        return RecommendationResponse.builder()
+                .type("CONTENT")
+                .items(items)
+                .build();
+    }
+
+    // ── 인기순 폴백 응답 ──────────────────────────────────────────────────────────
+
+    private RecommendationResponse buildPopularResponse(Long userId) {
+        List<Product> products = productRepository
+                .findTopByIsActiveTrueOrderByViewCountDesc(PageRequest.of(0, DEFAULT_LIMIT));
+        Set<Long> favoritedIds = getFavoritedIds(userId);
+
+        List<RecommendationItem> items = products.stream()
+                .map(p -> toItem(p, favoritedIds, null))
+                .collect(Collectors.toList());
+
+        return RecommendationResponse.builder()
+                .type("POPULAR")
+                .items(items)
+                .build();
+    }
+
+    // ── 공통 헬퍼 ────────────────────────────────────────────────────────────────
+
+    private Set<Long> getFavoritedIds(Long userId) {
+        if (userId == null) return Collections.emptySet();
+        return userFavoriteRepository.findFavoritedProductIdsByUserId(userId);
+    }
+
+    private RecommendationItem toItem(Product p, Set<Long> favoritedIds, Double score) {
+        return RecommendationItem.builder()
+                .id(p.getId())
+                .name(p.getName())
+                .imageUrl(p.getImageUrl())
+                .nutritionScore(p.getNutritionScore())
+                .isFavorited(favoritedIds.contains(p.getId()))
+                .score(score)
+                .brand(p.getBrand() != null
+                        ? RecommendationResponse.BrandInfo.builder()
+                                .id(p.getBrand().getId())
+                                .name(p.getBrand().getName())
+                                .build()
+                        : null)
+                .category(p.getCategory() != null
+                        ? RecommendationResponse.CategoryInfo.builder()
+                                .id(p.getCategory().getId())
+                                .name(p.getCategory().getName())
+                                .build()
+                        : null)
+                .build();
+    }
+}

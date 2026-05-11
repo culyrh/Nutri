@@ -4,8 +4,11 @@ import com.example.nutriuniv.domain.like.entity.UserFavorite;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.Set;
 
 public interface UserFavoriteRepository extends JpaRepository<UserFavorite, Long> {
 
@@ -20,4 +23,8 @@ public interface UserFavoriteRepository extends JpaRepository<UserFavorite, Long
 
     // ProductService에서 isFavorited 체크용
     boolean existsByUserIdAndProductIdAndProductIsActiveTrue(Long userId, Long productId);
+
+    // 추천 API에서 isFavorited 일괄 체크용
+    @Query("SELECT f.product.id FROM UserFavorite f WHERE f.user.id = :userId")
+    Set<Long> findFavoritedProductIdsByUserId(@Param("userId") Long userId);
 }

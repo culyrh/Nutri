@@ -2,6 +2,7 @@ package com.example.nutriuniv.domain.logging.controller;
 
 import com.example.nutriuniv.common.response.CommonResponse;
 import com.example.nutriuniv.common.security.UserPrincipal;
+import com.example.nutriuniv.domain.logging.dto.CtaLogRequest;
 import com.example.nutriuniv.domain.logging.dto.SearchLogRequest;
 import com.example.nutriuniv.domain.logging.dto.ViewLogRequest;
 import com.example.nutriuniv.domain.logging.service.LoggingService;
@@ -49,6 +50,24 @@ public class LoggingController {
 //        loggingService.logProductView(request, userId, ipAddress);
 //        return ResponseEntity.ok(CommonResponse.success(null));
 //    }
+
+    // POST /logging/cta
+    @Operation(summary = "쿠팡 CTA 클릭 로그 기록",
+            description = "쿠팡 링크 클릭 시 클라이언트가 호출합니다. " +
+                    "로그인 유저는 동일 상품 1시간 내 중복 클릭을 무시합니다. " +
+                    "로그 저장 실패 시에도 200을 반환합니다. " +
+                    "비로그인 시 user_id는 null로 저장됩니다.")
+    @PostMapping("/logging/cta")
+    public ResponseEntity<CommonResponse<Void>> logCta(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody CtaLogRequest request,
+            HttpServletRequest httpServletRequest) {
+
+        Long userId = principal != null ? principal.getId() : null;
+        String ipAddress = resolveClientIp(httpServletRequest);
+        loggingService.logProductCta(request, userId, ipAddress);
+        return ResponseEntity.ok(CommonResponse.success(null));
+    }
 
     // POST /logging/search
     @Operation(summary = "검색 로그 기록",

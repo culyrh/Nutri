@@ -52,6 +52,11 @@ public class Product {
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
 
+    // pgvector 타입 (10차원). Python vectorize.py가 직접 write한다.
+    // JPA INSERT/UPDATE에서 제외 — Python만 이 컬럼을 관리함
+    @Column(name = "nutrient_vector", columnDefinition = "vector(10)", insertable = false, updatable = false)
+    private String nutrientVector;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -83,6 +88,10 @@ public class Product {
     public void update(Category category, Brand brand) {
         this.category = category;
         this.brand = brand;
+    }
+
+    public void updateImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 
     public void update(String name, Category category, Brand brand,
