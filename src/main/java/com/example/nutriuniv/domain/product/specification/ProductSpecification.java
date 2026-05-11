@@ -1,11 +1,13 @@
 package com.example.nutriuniv.domain.product.specification;
 
+import com.example.nutriuniv.domain.category.entity.Category;
 import com.example.nutriuniv.domain.coupang.entity.CoupangLink;
 import com.example.nutriuniv.domain.product.entity.Product;
 import com.example.nutriuniv.domain.product.entity.ProductNutrient;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
@@ -51,9 +53,27 @@ public class ProductSpecification {
                 keyword == null ? null : cb.like(root.get("name"), "%" + keyword + "%");
     }
 
+    /**
+     * 카테고리 필터 - 선택한 카테고리 및 그 자식 카테고리 상품 모두 포함
+     * depth1 선택 시 → 해당 카테고리 + 자식(depth2)들의 상품 조회
+     * depth2 선택 시 → 해당 카테고리 상품만 조회 (자식 없음)
+     */
     public static Specification<Product> hasCategory(Long categoryId) {
-        return (root, query, cb) ->
-                categoryId == null ? null : cb.equal(root.get("category").get("id"), categoryId);
+        return (root, query, cb) -> {
+            if (categoryId == null) return null;
+
+            // 서브쿼리: parent_id = categoryId 인 자식 카테고리 id 목록
+            Subquery<Long> subquery = query.subquery(Long.class);
+            Root<Category> categoryRoot = subquery.from(Category.class);
+            subquery.select(categoryRoot.get("id"))
+                    .where(cb.equal(categoryRoot.get("parent").get("id"), categoryId));
+
+            // category.id = categoryId OR category.id IN (자식 id 목록)
+            return cb.or(
+                    cb.equal(root.get("category").get("id"), categoryId),
+                    root.get("category").get("id").in(subquery)
+            );
+        };
     }
 
     public static Specification<Product> hasBrand(Long brandId) {
