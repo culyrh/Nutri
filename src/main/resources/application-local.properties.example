@@ -18,6 +18,11 @@ kakao.client-id={your_kakao_client_id}
 kakao.client-secret={your_kakao_client_secret}
 kakao.redirect-uri={your_redirect_url}
 
+# Naver OAuth
+naver.client-id={your_naver_client_id}
+naver.client-secret={your_naver_client_secret}
+naver.redirect-uri={your_redirect_url}
+
 # coupang
 coupang.access-key=dummy
 coupang.secret-key=dummy
