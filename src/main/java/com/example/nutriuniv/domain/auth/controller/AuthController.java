@@ -48,6 +48,15 @@ public class AuthController {
                 .build();
     }
 
+    @Operation(summary = "네이버 OAuth 콜백")
+    @GetMapping("/oauth/naver")
+    public ResponseEntity<Void> naverCallback(@RequestParam String code) {
+        String redirectUrl = frontendUrl + "?code=" + code + "&provider=NAVER";
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(redirectUrl))
+                .build();
+    }
+
     @Operation(summary = "소셜 로그인",
             description = "기존회원이면 토큰 반환. 신규회원이면 newUser=true + oauthId 반환 (토큰 없음).")
     @PostMapping("/oauth")

@@ -35,6 +35,9 @@ jobs:
           kakao.client-id=$KAKAO_CLIENT_ID
           kakao.client-secret=$KAKAO_CLIENT_SECRET
           kakao.redirect-uri=$KAKAO_REDIRECT_URI
+          naver.client-id=$NAVER_CLIENT_ID
+          naver.client-secret=$NAVER_CLIENT_SECRET
+          naver.redirect-uri=$NAVER_REDIRECT_URI
           app.frontend-url=$APP_FRONTEND_URL
           EOF
         env:
@@ -50,6 +53,9 @@ jobs:
           KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
           KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
           KAKAO_REDIRECT_URI: ${{ secrets.KAKAO_REDIRECT_URI }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          NAVER_REDIRECT_URI: ${{ secrets.NAVER_REDIRECT_URI }}
           APP_FRONTEND_URL: ${{ secrets.APP_FRONTEND_URL }}
 
       - name: Grant execute permission for gradlew
