@@ -21,6 +21,7 @@ public class ProductDetailResponse {
     private CategoryInfo category;
     private NutrientInfo nutrients;
     private CoupangInfo coupang;   // 나중에 채울 예정, 지금은 null
+    private PnsInfo pns;            // 점수 미계산 상품이면 null
 
     @Getter
     @Builder
@@ -60,5 +61,18 @@ public class ProductDetailResponse {
         private Boolean isRocket;
         private Boolean isFreeShipping;
         private LocalDateTime lastSyncedAt;
+    }
+
+    @Getter
+    @Builder
+    public static class PnsInfo {
+        private BigDecimal score;            // PFS 원점수 (-∞ ~ +9)
+        private String grade;                // A~E
+        private BigDecimal percentile;       // 카테고리 내 백분위 (0~100, 클수록 좋음)
+        private BigDecimal topPercent;       // 상위 X% (= 100 - percentile)
+        private Long parentCategoryId;       // 대분류 ID
+        private String parentCategoryName;   // 대분류 이름 (예: "음료류")
+        private int categoryTotal;           // 대분류 안 활성 상품 수
+        private int eerBand;                 // 사용된 EER 구간 (1500/2000/2500/3000)
     }
 }

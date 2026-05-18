@@ -1,5 +1,9 @@
 package com.example.nutriuniv.domain.user.entity;
 
+import com.example.nutriuniv.domain.pns.calculator.EerCalculator;
+import com.example.nutriuniv.domain.pns.calculator.Gender;
+import com.example.nutriuniv.domain.pns.calculator.PaCalculator;
+import com.example.nutriuniv.domain.pns.calculator.PaLevel;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -53,6 +57,15 @@ public class UserNutrition {
     @Column(name = "daily_snack_count", nullable = false)
     private int dailySnackCount;
 
+    @Column(precision = 7, scale = 2)
+    private BigDecimal eer;
+
+    @Column(name = "pa_level", length = 20)
+    private String paLevel;
+
+    @Column(name = "eer_band")
+    private Integer eerBand;
+
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
@@ -74,6 +87,7 @@ public class UserNutrition {
         n.exerciseIntensity = exerciseIntensity;
         n.dailyMealCount = dailyMealCount;
         n.dailySnackCount = dailySnackCount;
+        n.recalculateEer();
         return n;
     }
 
@@ -92,5 +106,20 @@ public class UserNutrition {
         this.exerciseIntensity = exerciseIntensity;
         this.dailyMealCount = dailyMealCount;
         this.dailySnackCount = dailySnackCount;
+        recalculateEer();
+    }
+
+    /** 신체정보 / 활동 정보 변경 시 EER, PA, eer_band 재계산. */
+    public void recalculateEer() {
+        if (user == null || user.getBirthDate() == null
+                || height == null || weight == null) {
+            return;
+        }
+        Gender gender = Gender.from(user.getGender());
+        PaLevel pa = PaCalculator.calculate(activityType, weeklyExerciseCount, exerciseIntensity);
+        double eerValue = EerCalculator.calculate(gender, user.getBirthDate(), height, weight, pa);
+        this.eer = BigDecimal.valueOf(eerValue).setScale(2, java.math.RoundingMode.HALF_UP);
+        this.paLevel = pa.name();
+        this.eerBand = EerCalculator.toBand(eerValue);
     }
 }

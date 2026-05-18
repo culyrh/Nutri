@@ -9,6 +9,7 @@ import com.example.nutriuniv.domain.category.repository.CategoryRepository;
 import com.example.nutriuniv.domain.like.repository.UserFavoriteRepository;
 import com.example.nutriuniv.domain.coupang.entity.CoupangLink;
 import com.example.nutriuniv.domain.coupang.repository.CoupangLinkRepository;
+import com.example.nutriuniv.domain.pns.service.PnsLookupService;
 import com.example.nutriuniv.domain.product.dto.*;
 import com.example.nutriuniv.domain.product.entity.Product;
 import com.example.nutriuniv.domain.product.entity.ProductNutrient;
@@ -44,6 +45,7 @@ public class ProductService {
     private final UserFavoriteRepository userFavoriteRepository;
     private final EntityManager entityManager;
     private final CoupangLinkRepository coupangLinkRepository;
+    private final PnsLookupService pnsLookupService;
 
     // ── 일반 유저: 상품 목록 조회 ─────────────────────────────────────────────────
 
@@ -112,7 +114,34 @@ public class ProductService {
 
         CoupangLink coupangLink = coupangLinkRepository.findByProduct(product).orElse(null);
 
-        return toDetailResponse(product, nutrient, userId, coupangLink);
+        // PNS — 사용자 EER 구간 결정 후 점수/등급/백분위 + 대분류 총 개수 조회
+        int eerBand = pnsLookupService.resolveEerBand(userId);
+        PnsLookupService.PnsLookupResult pnsResult = pnsLookupService.lookup(product.getId(), eerBand);
+        ProductDetailResponse.PnsInfo pnsInfo = buildPnsInfo(product, pnsResult, eerBand);
+
+        return toDetailResponse(product, nutrient, userId, coupangLink, pnsInfo);
+    }
+
+    private ProductDetailResponse.PnsInfo buildPnsInfo(Product product,
+                                                        PnsLookupService.PnsLookupResult result,
+                                                        int eerBand) {
+        if (result == null) return null;
+
+        Category parent = product.getCategory().getParent();
+        Long parentId   = parent == null ? null : parent.getId();
+        String parentName = parent == null ? null : parent.getName();
+        int total = pnsLookupService.countActiveByParentCategory(parentId);
+
+        return ProductDetailResponse.PnsInfo.builder()
+                .score(result.score())
+                .grade(result.grade())
+                .percentile(result.percentile())
+                .topPercent(result.topPercent())
+                .parentCategoryId(parentId)
+                .parentCategoryName(parentName)
+                .categoryTotal(total)
+                .eerBand(eerBand)
+                .build();
     }
 
     // ── 관리자: 상품 목록 조회 ────────────────────────────────────────────────────
@@ -324,7 +353,8 @@ public class ProductService {
     }
 
     private ProductDetailResponse toDetailResponse(Product product, ProductNutrient nutrient,
-                                                   Long userId, CoupangLink coupangLink) {
+                                                   Long userId, CoupangLink coupangLink,
+                                                   ProductDetailResponse.PnsInfo pnsInfo) {
         boolean favorited = userId != null &&
                 userFavoriteRepository.existsByUserIdAndProductIdAndProductIsActiveTrue(userId, product.getId());
 
@@ -366,6 +396,7 @@ public class ProductService {
                         .isFreeShipping(coupangLink.getIsFreeShipping())
                         .lastSyncedAt(coupangLink.getLastSyncedAt())
                         .build())   // coupang 도메인 구현 후 채울 예정 -> 추가 완료
+                .pns(pnsInfo)
                 .build();
     }
 
