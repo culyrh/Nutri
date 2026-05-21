@@ -15,6 +15,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @Tag(name = "Product", description = "상품 API")
 @RestController
 @RequiredArgsConstructor
@@ -23,9 +25,20 @@ public class ProductController {
     private final ProductService productService;
     private final ProductExcelService productExcelService;
 
+    // GET /products/nutrient-claims
+    @Operation(summary = "영양 강조표시 필터 목록 조회",
+            description = "상품 필터링에 사용 가능한 영양 강조표시 코드와 라벨 목록을 반환합니다. " +
+                    "GET /products의 nutrientClaims 파라미터에 code 값을 사용하세요.")
+    @GetMapping("/products/nutrient-claims")
+    public ResponseEntity<CommonResponse<List<NutrientClaimResponse>>> getNutrientClaims() {
+        return ResponseEntity.ok(CommonResponse.success(NutrientClaimResponse.getAllClaims()));
+    }
+
     // GET /products
     @Operation(summary = "상품 목록 조회",
             description = "키워드, 카테고리, 브랜드, 영양소 범위 필터로 상품 목록을 조회합니다. " +
+                    "nutrientClaims 파라미터로 영양 강조표시 필터를 적용할 수 있습니다 (복수 선택 가능, AND 조건). " +
+                    "사용 가능한 값: GET /products/nutrient-claims 참조. " +
                     "로그인 시 찜 여부(isFavorited)가 반영됩니다.")
     @GetMapping("/products")
     public ResponseEntity<CommonResponse<ProductPageResponse>> getProducts(

@@ -13,8 +13,10 @@ import com.example.nutriuniv.domain.pns.service.PnsLookupService;
 import com.example.nutriuniv.domain.product.dto.*;
 import com.example.nutriuniv.domain.product.entity.Product;
 import com.example.nutriuniv.domain.product.entity.ProductNutrient;
+import com.example.nutriuniv.domain.product.enums.NutrientClaim;
 import com.example.nutriuniv.domain.product.repository.ProductNutrientRepository;
 import com.example.nutriuniv.domain.product.repository.ProductRepository;
+import com.example.nutriuniv.domain.product.specification.NutrientClaimSpecification;
 import com.example.nutriuniv.domain.product.specification.ProductSpecification;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -78,7 +80,8 @@ public class ProductService {
                 .and(ProductSpecification.hasMinSodium(request.getMinSodium()))
                 .and(ProductSpecification.hasMaxSodium(request.getMaxSodium()))
                 .and(ProductSpecification.hasMinNutritionScore(request.getMinNutritionScore()))
-                .and(ProductSpecification.hasMaxNutritionScore(request.getMaxNutritionScore()));
+                .and(ProductSpecification.hasMaxNutritionScore(request.getMaxNutritionScore()))
+                .and(NutrientClaimSpecification.hasClaims(parseClaims(request.getNutrientClaims())));
 
         Pageable pageable = PageRequest.of(request.getPage(), request.getSize(), resolveSort(request.getSort()));
         Page<Product> page = productRepository.findAll(spec, pageable);
@@ -123,8 +126,8 @@ public class ProductService {
     }
 
     private ProductDetailResponse.PnsInfo buildPnsInfo(Product product,
-                                                        PnsLookupService.PnsLookupResult result,
-                                                        int eerBand) {
+                                                       PnsLookupService.PnsLookupResult result,
+                                                       int eerBand) {
         if (result == null) return null;
 
         Category parent = product.getCategory().getParent();
@@ -162,7 +165,6 @@ public class ProductService {
                 .and(ProductSpecification.hasCategory(request.getCategoryId()))
                 .and(ProductSpecification.hasBrand(request.getBrandId()))
                 .and(ProductSpecification.hasLinkStatus(request.getLinkStatus()));
-        // linkStatus 필터는 CoupangLink 엔티티 구현 후 추가 -> 추가 완료
 
         Pageable pageable = PageRequest.of(request.getPage(), request.getSize(),
                 Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -226,14 +228,6 @@ public class ProductService {
     }
 
     // ── 관리자: 전체 초기화 ───────────────────────────────────────────────────────
-    // 현재 구현된 테이블만 포함. 추후 도메인 추가 시 해당 테이블도 여기에 추가할 것.
-    //
-    // 아래 테이블 구현 후 TRUNCATE 목록에 추가
-    //   - coupang_links       (쿠팡 연동 구현 시) -> 추가 완료
-    //   - user_favorites      (찜 도메인 구현 시) -> 추가 완료
-    //   TODO: - user_compares       (비교 도메인 구현 시)
-    //   - reviews, review_images (리뷰 도메인 구현 시) -> 추가 완료
-    //   - product_view_logs   (로깅 도메인 구현 시) -> 추가 완료
 
     @Transactional
     public void resetAll() {
@@ -291,11 +285,6 @@ public class ProductService {
         entityManager.createNativeQuery(
                 "ALTER SEQUENCE categories_id_seq RESTART WITH 1"
         ).executeUpdate();
-
-//        // 10. search_logs (일단 추가는 함)
-//        entityManager.createNativeQuery(
-//                "TRUNCATE TABLE search_logs RESTART IDENTITY CASCADE"
-//        ).executeUpdate();
     }
 
     // ── 검증 헬퍼 ─────────────────────────────────────────────────────────────────
@@ -316,6 +305,22 @@ public class ProductService {
         return min != null && max != null && min.compareTo(max) > 0;
     }
 
+    // ── 영양 강조표시 파싱 ────────────────────────────────────────────────────────
+
+    private List<NutrientClaim> parseClaims(List<String> rawClaims) {
+        if (rawClaims == null || rawClaims.isEmpty()) return List.of();
+        return rawClaims.stream()
+                .map(s -> {
+                    try {
+                        return NutrientClaim.valueOf(s.toUpperCase());
+                    } catch (IllegalArgumentException e) {
+                        throw new CustomException(ErrorCode.INVALID_QUERY_PARAM,
+                                "유효하지 않은 영양 강조표시 값: " + s);
+                    }
+                })
+                .collect(Collectors.toList());
+    }
+
     // ── 정렬 변환 ─────────────────────────────────────────────────────────────────
 
     private Sort resolveSort(String sort) {
@@ -324,7 +329,7 @@ public class ProductService {
             case "POPULAR"     -> Sort.by(Sort.Direction.DESC, "viewCount");
             case "SCORE"       -> Sort.by(Sort.Direction.DESC, "nutritionScore");
             case "ACCURACY",
-                 "RECOMMENDED" -> Sort.by(Sort.Direction.DESC, "createdAt");   // TODO: 추후 구현
+                 "RECOMMENDED" -> Sort.by(Sort.Direction.DESC, "createdAt");
             default            -> Sort.by(Sort.Direction.DESC, "createdAt");
         };
     }
@@ -364,8 +369,8 @@ public class ProductService {
                 .imageUrl(product.getImageUrl())
                 .nutritionScore(product.getNutritionScore())
                 .viewCount(product.getViewCount())
-                .isFavorited(favorited)  // like 도메인 구현 후 채울 예정 -> 추가 완료
-                .scoreRankPercent(null)   // TODO: 추후 구현
+                .isFavorited(favorited)
+                .scoreRankPercent(null)
                 .brand(product.getBrand() == null ? null : ProductDetailResponse.BrandInfo.builder()
                         .id(product.getBrand().getId())
                         .name(product.getBrand().getName())
@@ -395,7 +400,7 @@ public class ProductService {
                         .isRocket(coupangLink.getIsRocket())
                         .isFreeShipping(coupangLink.getIsFreeShipping())
                         .lastSyncedAt(coupangLink.getLastSyncedAt())
-                        .build())   // coupang 도메인 구현 후 채울 예정 -> 추가 완료
+                        .build())
                 .pns(pnsInfo)
                 .build();
     }
@@ -408,7 +413,7 @@ public class ProductService {
                 .nutritionScore(product.getNutritionScore())
                 .linkStatus(product.getCoupangLink() != null
                         ? product.getCoupangLink().getLinkStatus()
-                        : "UNLINKED")  // CoupangLink 구현 후 채울 예정 -> 추가 완료
+                        : "UNLINKED")
                 .brand(product.getBrand() == null ? null : AdminProductPageResponse.BrandInfo.builder()
                         .id(product.getBrand().getId())
                         .name(product.getBrand().getName())

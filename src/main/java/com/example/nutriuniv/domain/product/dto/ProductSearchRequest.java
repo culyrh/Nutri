@@ -5,6 +5,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Getter
 @Setter
@@ -42,6 +43,13 @@ public class ProductSearchRequest {
     // 영양점수
     private BigDecimal minNutritionScore;
     private BigDecimal maxNutritionScore;
+
+    /**
+     * 영양 강조표시 필터 (복수 선택 가능, AND 조건)
+     * 예: ["HIGH_PROTEIN", "LOW_FAT"]
+     * 사용 가능한 값 목록: GET /products/nutrient-claims
+     */
+    private List<String> nutrientClaims;
 
     private String sort;   // POPULAR/SCORE/ACCURACY/RECOMMENDED
 
