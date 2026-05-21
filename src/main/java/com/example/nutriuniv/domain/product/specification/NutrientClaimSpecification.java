@@ -34,7 +34,7 @@ public class NutrientClaimSpecification {
      * 여러 NutrientClaim을 AND 조건으로 결합
      */
     public static Specification<Product> hasClaims(List<NutrientClaim> claims) {
-        if (claims == null || claims.isEmpty()) return null;
+        if (claims == null || claims.isEmpty()) return Specification.where((Specification<Product>) null);
 
         Specification<Product> combined = Specification.where((Specification<Product>) null);
         for (NutrientClaim claim : claims) {
@@ -201,7 +201,6 @@ public class NutrientClaimSpecification {
                     cb.and(isLiquid, cb.lessThan(n.get("saturatedFatPer100g"), new BigDecimal("0.75"))),
                     cb.and(isSolid,  cb.lessThan(n.get("saturatedFatPer100g"), new BigDecimal("1.5")))
             );
-            // 포화지방(g) * 9kcal < 총열량 * 10%  →  saturatedFat * 9 < calories * 0.1
             Predicate ratioOk = cb.lessThan(
                     cb.prod(n.<BigDecimal>get("saturatedFatPer100g"), new BigDecimal("9")),
                     cb.prod(n.<BigDecimal>get("caloriesPer100g"),     new BigDecimal("0.1"))
@@ -282,7 +281,6 @@ public class NutrientClaimSpecification {
 
     /**
      * 식이섬유 함유: 100g당 3g 이상 OR 100kcal당 1.5g 이상
-     * 100kcal당: fiberPer100g * 100 >= caloriesPer100g * 1.5
      */
     private static Specification<Product> fiberSource() {
         return (root, query, cb) -> {
@@ -293,15 +291,15 @@ public class NutrientClaimSpecification {
             );
             Predicate per100gOk = cb.greaterThanOrEqualTo(n.get("fiberPer100g"), new BigDecimal("3"));
             Predicate per100kcalOk = cb.greaterThanOrEqualTo(
-                    cb.prod(n.<BigDecimal>get("fiberPer100g"),     new BigDecimal("100")),
-                    cb.prod(n.<BigDecimal>get("caloriesPer100g"),  new BigDecimal("1.5"))
+                    cb.prod(n.<BigDecimal>get("fiberPer100g"),    new BigDecimal("100")),
+                    cb.prod(n.<BigDecimal>get("caloriesPer100g"), new BigDecimal("1.5"))
             );
             return cb.and(hasUnit, cb.or(per100gOk, per100kcalOk));
         };
     }
 
     /**
-     * 고식이섬유: 함유 기준의 2배 → 100g당 6g 이상 OR 100kcal당 3g 이상
+     * 고식이섬유: 100g당 6g 이상 OR 100kcal당 3g 이상
      */
     private static Specification<Product> highFiber() {
         return (root, query, cb) -> {
@@ -323,9 +321,7 @@ public class NutrientClaimSpecification {
 
     /**
      * 단백질 함유 (1일 기준치 55g):
-     *   고체: 100g당 5.5g(기준치 10%) 이상
-     *   액체: 100mL당 2.75g(기준치 5%) 이상
-     *   공통: 100kcal당 2.75g(기준치 5%) 이상
+     *   고체: 100g당 5.5g 이상 / 액체: 100mL당 2.75g 이상 / 100kcal당 2.75g 이상
      */
     private static Specification<Product> proteinSource() {
         return (root, query, cb) -> {
@@ -349,7 +345,7 @@ public class NutrientClaimSpecification {
     }
 
     /**
-     * 고단백: 함유 기준의 2배
+     * 고단백:
      *   고체: 100g당 11g 이상 / 액체: 100mL당 5.5g 이상 / 100kcal당 5.5g 이상
      */
     private static Specification<Product> highProtein() {
