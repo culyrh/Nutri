@@ -5,6 +5,11 @@ import com.example.nutriuniv.common.exception.ErrorCode;
 import com.example.nutriuniv.domain.admin.dto.AdminCoupangBulkSyncResponse;
 import com.example.nutriuniv.domain.admin.dto.AdminCoupangLinkPageResponse;
 import com.example.nutriuniv.domain.admin.dto.AdminCoupangLinkResponse;
+import com.example.nutriuniv.domain.admin.dto.AdminCoupangManualActionRequest;
+import com.example.nutriuniv.domain.admin.dto.AdminCoupangManualActionResponse;
+import com.example.nutriuniv.domain.admin.dto.AdminCoupangManualCandidate;
+import com.example.nutriuniv.domain.admin.dto.AdminCoupangManualQueueResponse;
+import com.example.nutriuniv.domain.admin.dto.AdminCoupangManualSearchResponse;
 import com.example.nutriuniv.domain.admin.dto.AdminCoupangSyncResponse;
 import com.example.nutriuniv.domain.coupang.client.CoupangApiClient;
 import com.example.nutriuniv.domain.coupang.dto.CoupangProductData;
@@ -341,9 +346,8 @@ public class AdminCoupangService {
                 .build();
     }
 
-    /** 모든 쿠팡 호출 직전에 3초 슬립 — 분당 50회 제한 대비. */
+    /** 쿠팡 호출 wrapper. 실제 throttle 은 CoupangApiClient.awaitRateLimit() 에서 글로벌로 처리됨. */
     private CoupangSearchResponse.SearchData throttledSearch(String keyword) throws InterruptedException {
-        Thread.sleep(3000);
         return coupangApiClient.searchProduct(keyword);
     }
 
@@ -433,5 +437,182 @@ public class AdminCoupangService {
         return Arrays.stream(s.trim().split("\\s+"))
                 .filter(t -> !t.isBlank())
                 .collect(Collectors.toList());
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════════
+    //  수동 매핑 (Manual Mapping)
+    // ═════════════════════════════════════════════════════════════════════════════
+    //
+    //  CLI 도구(scripts/manual_map.py) 와 함께 동작.
+    //  서버는 stateless — 1차 호출에서 받은 후보 데이터를 클라이언트가 들고 있다가
+    //  2차 호출 시 그대로 다시 보냄. DB 에 후보를 캐싱하지 않음.
+    //
+    //  엔드포인트 3개:
+    //    GET  /admin/coupang/manual/queue  → 작업 대상 productId 목록 (오름차순)
+    //    GET  /admin/coupang/manual         → 한 productId 의 상품정보 + 현재매핑 + 쿠팡후보 20개
+    //    POST /admin/coupang/manual/{id}    → SELECT / SKIP 액션 처리
+
+    private static final Set<String> MANUAL_STATUS_VALUES =
+            Set.of("LINKED", "UNLINKED", "FAILED", "SKIPPED", "ALL");
+    private static final int MANUAL_SEARCH_LIMIT = 10;
+
+    /** GET /admin/coupang/manual/queue */
+    @Transactional(readOnly = true)
+    public AdminCoupangManualQueueResponse getManualQueue(List<String> statuses, Long fromId) {
+        if (fromId == null || fromId < 0) fromId = 0L;
+
+        List<String> normalized = (statuses == null) ? List.of() :
+                statuses.stream()
+                        .filter(s -> s != null && !s.isBlank())
+                        .map(String::toUpperCase)
+                        .collect(Collectors.toList());
+
+        for (String s : normalized) {
+            if (!MANUAL_STATUS_VALUES.contains(s)) {
+                throw new CustomException(ErrorCode.INVALID_QUERY_PARAM,
+                        "허용되지 않는 status: " + s + " (LINKED / UNLINKED / FAILED / SKIPPED / ALL)");
+            }
+        }
+
+        // "ALL" 이 포함되어 있으면 statuses 빈 리스트로 → 전체
+        List<String> queryStatuses = normalized.contains("ALL") ? List.of() : normalized;
+
+        List<Long> productIds = coupangLinkRepository.findProductIdsForManualQueue(fromId, queryStatuses);
+
+        return AdminCoupangManualQueueResponse.builder()
+                .totalCount(productIds.size())
+                .productIds(productIds)
+                .statuses(normalized)
+                .fromId(fromId)
+                .build();
+    }
+
+    /** GET /admin/coupang/manual?productId=X&keyword=Y */
+    @Transactional(readOnly = true)
+    public AdminCoupangManualSearchResponse getManualSearch(Long productId, String customKeyword) {
+        if (productId == null) {
+            throw new CustomException(ErrorCode.INVALID_QUERY_PARAM, "productId 가 필요합니다.");
+        }
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND,
+                        "존재하지 않는 상품: productId=" + productId));
+
+        CoupangLink link = coupangLinkRepository.findByProduct(product).orElse(null);
+
+        AdminCoupangManualSearchResponse.CurrentMapping currentMapping = null;
+        if (link != null && "LINKED".equals(link.getLinkStatus())) {
+            currentMapping = AdminCoupangManualSearchResponse.CurrentMapping.builder()
+                    .linkStatus(link.getLinkStatus())
+                    .coupangProductName(link.getCoupangProductName())
+                    .coupangProductId(link.getCoupangProductId())
+                    .build();
+        } else if (link != null) {
+            // FAILED/SKIPPED/UNLINKED 도 현재 상태를 보여주면 사용자가 판단에 도움됨
+            currentMapping = AdminCoupangManualSearchResponse.CurrentMapping.builder()
+                    .linkStatus(link.getLinkStatus())
+                    .coupangProductName(link.getCoupangProductName())
+                    .coupangProductId(link.getCoupangProductId())
+                    .build();
+        }
+
+        String keyword = (customKeyword == null || customKeyword.isBlank())
+                ? product.getName()
+                : customKeyword.trim();
+
+        log.info("[CoupangManual] productId={}, keyword='{}'", productId, keyword);
+
+        CoupangSearchResponse.SearchData searchData;
+        try {
+            searchData = coupangApiClient.searchProduct(keyword, MANUAL_SEARCH_LIMIT);
+        } catch (Exception e) {
+            log.warn("[CoupangManual] 쿠팡 호출 실패 - productId={}, error={}", productId, e.getMessage());
+            searchData = null;
+        }
+
+        List<AdminCoupangManualCandidate> candidates = new ArrayList<>();
+        String landingUrl = null;
+        if (searchData != null && searchData.getProductData() != null) {
+            landingUrl = searchData.getLandingUrl();
+            int idx = 1;
+            for (CoupangProductData d : searchData.getProductData()) {
+                candidates.add(AdminCoupangManualCandidate.of(idx++, d));
+            }
+        }
+
+        return AdminCoupangManualSearchResponse.builder()
+                .product(AdminCoupangManualSearchResponse.ProductInfo.builder()
+                        .id(product.getId())
+                        .name(product.getName())
+                        .build())
+                .currentMapping(currentMapping)
+                .searchKeyword(keyword)
+                .landingUrl(landingUrl)
+                .candidates(candidates)
+                .build();
+    }
+
+    /** POST /admin/coupang/manual/{productId} */
+    @Transactional
+    public AdminCoupangManualActionResponse processManualAction(Long productId,
+                                                                AdminCoupangManualActionRequest request) {
+        if (productId == null) {
+            throw new CustomException(ErrorCode.INVALID_QUERY_PARAM, "productId 가 필요합니다.");
+        }
+        if (request == null || request.getAction() == null) {
+            throw new CustomException(ErrorCode.INVALID_QUERY_PARAM, "action 이 필요합니다. (SELECT / SKIP)");
+        }
+        String action = request.getAction().toUpperCase();
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND,
+                        "존재하지 않는 상품: productId=" + productId));
+
+        CoupangLink link = coupangLinkRepository.findByProduct(product)
+                .orElseGet(() -> coupangLinkRepository.save(CoupangLink.createDefault(product)));
+
+        switch (action) {
+            case "SELECT" -> {
+                AdminCoupangManualCandidate c = request.getCandidate();
+                if (c == null || c.getProductId() == null || c.getProductName() == null) {
+                    throw new CustomException(ErrorCode.INVALID_QUERY_PARAM,
+                            "SELECT 액션은 candidate 의 productId, productName 이 필요합니다.");
+                }
+                link.manualSelect(
+                        c.getProductId(),
+                        c.getProductName(),
+                        c.getProductUrl(),
+                        request.getLandingUrl(),
+                        c.getProductImage(),
+                        c.getProductPrice(),
+                        c.getIsRocket(),
+                        c.getIsFreeShipping(),
+                        request.getSearchKeyword()
+                );
+                product.updateImageUrl(c.getProductImage());
+                log.info("[CoupangManual] SELECT - productId={}, coupangProductName='{}'",
+                        productId, c.getProductName());
+
+                return AdminCoupangManualActionResponse.builder()
+                        .productId(productId)
+                        .linkStatus(link.getLinkStatus())
+                        .coupangProductName(link.getCoupangProductName())
+                        .message("매핑 완료")
+                        .build();
+            }
+            case "SKIP" -> {
+                link.markSkipped(request.getSearchKeyword());
+                log.info("[CoupangManual] SKIP   - productId={}", productId);
+
+                return AdminCoupangManualActionResponse.builder()
+                        .productId(productId)
+                        .linkStatus(link.getLinkStatus())
+                        .coupangProductName(null)
+                        .message("매칭 포기 처리됨 (다음 큐에서 제외)")
+                        .build();
+            }
+            default -> throw new CustomException(ErrorCode.INVALID_QUERY_PARAM,
+                    "허용되지 않는 action: " + action + " (SELECT / SKIP)");
+        }
     }
 }

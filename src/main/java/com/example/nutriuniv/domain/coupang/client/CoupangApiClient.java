@@ -37,6 +37,29 @@ public class CoupangApiClient {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    // ── 쿠팡 호출 글로벌 throttle ─────────────────────────────────────────────────
+    // 모든 쿠팡 API 호출은 마지막 호출로부터 최소 MIN_INTERVAL_MS 만큼 간격을 두고 발생.
+    // 동시에 여러 스레드/요청이 들어와도 synchronized 로 직렬화되어 분당 50회 제한을 안전하게 지킴.
+    private static final Object  CALL_LOCK        = new Object();
+    private static final long    MIN_INTERVAL_MS  = 3000L;
+    private static volatile long lastCallMillis   = 0L;
+
+    private void awaitRateLimit() {
+        synchronized (CALL_LOCK) {
+            long now     = System.currentTimeMillis();
+            long elapsed = now - lastCallMillis;
+            if (elapsed < MIN_INTERVAL_MS) {
+                try {
+                    Thread.sleep(MIN_INTERVAL_MS - elapsed);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("쿠팡 호출 throttle 대기 중 인터럽트", e);
+                }
+            }
+            lastCallMillis = System.currentTimeMillis();
+        }
+    }
+
     // ── HMAC 서명 ─────────────────────────────────────────────────────────────────
 
     private HttpHeaders createHeaders(String method, String path, String queryString) {
@@ -71,7 +94,13 @@ public class CoupangApiClient {
     // ── 상품 검색 ─────────────────────────────────────────────────────────────────
 
     public CoupangSearchResponse.SearchData searchProduct(String keyword) {
-        String queryString = "keyword=" + URLEncoder.encode(keyword, StandardCharsets.UTF_8) + "&limit=10";
+        return searchProduct(keyword, 10);
+    }
+
+    public CoupangSearchResponse.SearchData searchProduct(String keyword, int limit) {
+        awaitRateLimit();
+
+        String queryString = "keyword=" + URLEncoder.encode(keyword, StandardCharsets.UTF_8) + "&limit=" + limit;
         URI uri = URI.create(BASE_URL + SEARCH_PATH + "?" + queryString);
 
         ResponseEntity<CoupangSearchResponse> response = restTemplate.exchange(

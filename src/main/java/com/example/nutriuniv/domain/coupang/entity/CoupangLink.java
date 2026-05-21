@@ -89,4 +89,29 @@ public class CoupangLink {
         this.linkStatus = "FAILED";
         this.lastSyncedAt = LocalDateTime.now();
     }
+
+    /** 수동 매핑에서 "매칭 포기" 처리. 다음 작업 큐에서 영구 제외됨. */
+    public void markSkipped(String searchKeyword) {
+        this.searchKeyword      = searchKeyword == null ? this.searchKeyword : searchKeyword;
+        this.linkStatus         = "SKIPPED";
+        this.coupangProductId   = null;
+        this.coupangProductName = null;
+        this.affiliateUrl       = null;
+        this.landingUrl         = null;
+        this.coupangImageUrl    = null;
+        this.productPrice       = null;
+        this.isRocket           = null;
+        this.isFreeShipping     = null;
+        this.lastSyncedAt       = LocalDateTime.now();
+    }
+
+    /** 수동 매핑에서 사용자가 선택한 후보로 매핑 확정. searchKeyword 도 같이 기록. */
+    public void manualSelect(String coupangProductId, String coupangProductName,
+                             String affiliateUrl, String landingUrl, String coupangImageUrl,
+                             Integer productPrice, Boolean isRocket, Boolean isFreeShipping,
+                             String searchKeyword) {
+        this.searchKeyword     = searchKeyword == null ? this.searchKeyword : searchKeyword;
+        syncSuccess(coupangProductId, coupangProductName, affiliateUrl, landingUrl,
+                    coupangImageUrl, productPrice, isRocket, isFreeShipping);
+    }
 }

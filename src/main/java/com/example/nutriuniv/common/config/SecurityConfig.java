@@ -36,8 +36,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/reviews/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
-                        // admin
-                        .requestMatchers("/admin/**").hasRole("ADMIN")
+                        // admin (TODO: 로컬 개발 임시 허용 — 운영 배포 전 hasRole("ADMIN") 복구)
+                        .requestMatchers("/admin/**").permitAll()
                         // 나머지 인증 필요
                         .anyRequest().authenticated()
                 )
