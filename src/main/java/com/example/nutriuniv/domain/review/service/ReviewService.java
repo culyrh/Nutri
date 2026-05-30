@@ -38,7 +38,6 @@ public class ReviewService {
             throw new CustomException(ErrorCode.INVALID_QUERY_PARAM, "page, size는 1 이상이어야 합니다.");
         }
 
-        // 상품 존재 여부 확인
         if (!productRepository.existsById(productId)) {
             throw new CustomException(ErrorCode.RESOURCE_NOT_FOUND, "존재하지 않는 상품입니다.");
         }
@@ -47,16 +46,12 @@ public class ReviewService {
         Page<Review> reviewPage = reviewRepository.findByProductIdAndIsActiveTrue(productId, pageable);
 
         Double avgOverall = reviewRepository.avgScoreOverall(productId);
-        Double avgTaste   = reviewRepository.avgScoreTaste(productId);
-        Double avgValue   = reviewRepository.avgScoreValue(productId);
 
         List<ReviewPageResponse.ReviewItem> items = reviewPage.getContent().stream()
                 .map(r -> ReviewPageResponse.ReviewItem.builder()
                         .reviewId(r.getId())
                         .nickname(r.getUser().getNickname())
                         .scoreOverall(r.getScoreOverall())
-                        .scoreTaste(r.getScoreTaste())
-                        .scoreValue(r.getScoreValue())
                         .content(r.getContent())
                         .images(r.getImages().stream()
                                 .map(ReviewImage::getImageUrl)
@@ -68,8 +63,6 @@ public class ReviewService {
         return ReviewPageResponse.builder()
                 .total(reviewPage.getTotalElements())
                 .avgScoreOverall(round(avgOverall))
-                .avgScoreTaste(round(avgTaste))
-                .avgScoreValue(round(avgValue))
                 .items(items)
                 .build();
     }
@@ -84,16 +77,14 @@ public class ReviewService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND, "존재하지 않는 상품입니다."));
 
-        // 중복 리뷰 체크
         if (reviewRepository.existsByUserIdAndProductIdAndIsActiveTrue(userId, productId)) {
             throw new CustomException(ErrorCode.DUPLICATE_RESOURCE, "이미 해당 상품에 리뷰를 작성했습니다.");
         }
 
         Review review = Review.create(user, product,
-                request.getScoreOverall(), request.getScoreTaste(), request.getScoreValue(),
+                request.getScoreOverall(),
                 request.getContent());
 
-        // 이미지 추가
         if (request.getImages() != null) {
             for (int i = 0; i < request.getImages().size(); i++) {
                 ReviewImage img = ReviewImage.create(review, request.getImages().get(i), i);
@@ -115,15 +106,12 @@ public class ReviewService {
         Review review = reviewRepository.findByIdAndIsActiveTrue(reviewId)
                 .orElseThrow(() -> new CustomException(ErrorCode.RESOURCE_NOT_FOUND, "존재하지 않는 리뷰입니다."));
 
-        // 본인 리뷰 확인
         if (!review.getUser().getId().equals(userId)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "본인 리뷰만 수정할 수 있습니다.");
         }
 
-        review.update(request.getScoreOverall(), request.getScoreTaste(),
-                request.getScoreValue(), request.getContent());
+        review.update(request.getScoreOverall(), request.getContent());
 
-        // 이미지 교체 (기존 이미지 전부 삭제 후 새 이미지 등록)
         review.clearImages();
         if (request.getImages() != null) {
             for (int i = 0; i < request.getImages().size(); i++) {

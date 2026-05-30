@@ -13,14 +13,6 @@ public class ReviewUpdateRequest {
     @Max(value = 5, message = "평점은 5 이하이어야 합니다.")
     private Integer scoreOverall;
 
-    @Min(value = 1, message = "맛 평점은 1 이상이어야 합니다.")
-    @Max(value = 5, message = "맛 평점은 5 이하이어야 합니다.")
-    private Integer scoreTaste;
-
-    @Min(value = 1, message = "가격 평점은 1 이상이어야 합니다.")
-    @Max(value = 5, message = "가격 평점은 5 이하이어야 합니다.")
-    private Integer scoreValue;
-
     @Size(max = 500, message = "리뷰 내용은 500자 이하여야 합니다.")
     private String content;
 

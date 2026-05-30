@@ -26,16 +26,4 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             WHERE r.product.id = :productId AND r.isActive = true
             """)
     Double avgScoreOverall(@Param("productId") Long productId);
-
-    @Query("""
-            SELECT AVG(r.scoreTaste) FROM Review r
-            WHERE r.product.id = :productId AND r.isActive = true AND r.scoreTaste IS NOT NULL
-            """)
-    Double avgScoreTaste(@Param("productId") Long productId);
-
-    @Query("""
-            SELECT AVG(r.scoreValue) FROM Review r
-            WHERE r.product.id = :productId AND r.isActive = true AND r.scoreValue IS NOT NULL
-            """)
-    Double avgScoreValue(@Param("productId") Long productId);
 }

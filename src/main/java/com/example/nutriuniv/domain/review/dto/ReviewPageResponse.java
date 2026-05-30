@@ -12,8 +12,6 @@ public class ReviewPageResponse {
 
     private long total;
     private Double avgScoreOverall;
-    private Double avgScoreTaste;
-    private Double avgScoreValue;
     private List<ReviewItem> items;
 
     @Getter
@@ -22,8 +20,6 @@ public class ReviewPageResponse {
         private Long reviewId;
         private String nickname;
         private int scoreOverall;
-        private Integer scoreTaste;
-        private Integer scoreValue;
         private String content;
         private List<String> images;
         private LocalDateTime createdAt;

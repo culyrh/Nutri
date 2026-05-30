@@ -37,12 +37,6 @@ public class Review {
     @Column(columnDefinition = "TEXT")
     private String content;
 
-    @Column(name = "score_taste")
-    private Integer scoreTaste;
-
-    @Column(name = "score_value")
-    private Integer scoreValue;
-
     @Column(name = "score_overall", nullable = false)
     private int scoreOverall;
 
@@ -62,22 +56,18 @@ public class Review {
     private LocalDateTime updatedAt;
 
     public static Review create(User user, Product product,
-                                int scoreOverall, Integer scoreTaste, Integer scoreValue,
+                                int scoreOverall,
                                 String content) {
         Review r = new Review();
         r.user = user;
         r.product = product;
         r.scoreOverall = scoreOverall;
-        r.scoreTaste = scoreTaste;
-        r.scoreValue = scoreValue;
         r.content = content;
         return r;
     }
 
-    public void update(int scoreOverall, Integer scoreTaste, Integer scoreValue, String content) {
+    public void update(int scoreOverall, String content) {
         this.scoreOverall = scoreOverall;
-        this.scoreTaste = scoreTaste;
-        this.scoreValue = scoreValue;
         this.content = content;
     }
 
