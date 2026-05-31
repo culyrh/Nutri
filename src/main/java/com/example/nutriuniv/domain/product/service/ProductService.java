@@ -64,8 +64,8 @@ public class ProductService {
 
         Specification<Product> spec = Specification.where(ProductSpecification.isActive());
         spec = andIf(spec, request.getKeyword() != null, ProductSpecification.hasKeyword(request.getKeyword()));
-        spec = andIf(spec, request.getCategoryId() != null, ProductSpecification.hasCategory(request.getCategoryId()));
-        spec = andIf(spec, request.getBrandId() != null, ProductSpecification.hasBrand(request.getBrandId()));
+        spec = andIf(spec, request.getCategoryIds() != null && !request.getCategoryIds().isEmpty(), ProductSpecification.hasCategory(request.getCategoryIds()));
+        spec = andIf(spec, request.getBrandIds() != null && !request.getBrandIds().isEmpty(), ProductSpecification.hasBrand(request.getBrandIds()));
         spec = andIf(spec, request.getMinCalories() != null, ProductSpecification.hasMinCalories(request.getMinCalories()));
         spec = andIf(spec, request.getMaxCalories() != null, ProductSpecification.hasMaxCalories(request.getMaxCalories()));
         spec = andIf(spec, request.getMinProtein() != null, ProductSpecification.hasMinProtein(request.getMinProtein()));
@@ -163,8 +163,8 @@ public class ProductService {
 
         Specification<Product> spec = Specification.where(ProductSpecification.isActiveAdmin(request.getIsActive()));
         spec = andIf(spec, request.getKeyword() != null, ProductSpecification.hasKeyword(request.getKeyword()));
-        spec = andIf(spec, request.getCategoryId() != null, ProductSpecification.hasCategory(request.getCategoryId()));
-        spec = andIf(spec, request.getBrandId() != null, ProductSpecification.hasBrand(request.getBrandId()));
+        spec = andIf(spec, request.getCategoryIds() != null && !request.getCategoryIds().isEmpty(), ProductSpecification.hasCategory(request.getCategoryIds()));
+        spec = andIf(spec, request.getBrandIds() != null && !request.getBrandIds().isEmpty(), ProductSpecification.hasBrand(request.getBrandIds()));
         spec = andIf(spec, request.getLinkStatus() != null, ProductSpecification.hasLinkStatus(request.getLinkStatus()));
 
         Pageable pageable = PageRequest.of(request.getPage(), request.getSize(),

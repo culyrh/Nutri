@@ -11,6 +11,7 @@ import jakarta.persistence.criteria.Subquery;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public class ProductSpecification {
 
@@ -54,31 +55,30 @@ public class ProductSpecification {
     }
 
     /**
-     * 카테고리 필터 - 선택한 카테고리 및 그 자식 카테고리 상품 모두 포함
-     * depth1 선택 시 → 해당 카테고리 + 자식(depth2)들의 상품 조회
-     * depth2 선택 시 → 해당 카테고리 상품만 조회 (자식 없음)
+     * 카테고리 필터 - 선택한 카테고리 및 그 자식 카테고리 상품 모두 포함 (다중 선택)
+     * 서브쿼리 하나로 통합: category.id IN (1,2,3) OR parent_id IN (1,2,3)
      */
-    public static Specification<Product> hasCategory(Long categoryId) {
+    public static Specification<Product> hasCategory(List<Long> categoryIds) {
         return (root, query, cb) -> {
-            if (categoryId == null) return null;
+            if (categoryIds == null || categoryIds.isEmpty()) return null;
 
-            // 서브쿼리: parent_id = categoryId 인 자식 카테고리 id 목록
+            // 서브쿼리: id IN categoryIds (자신) OR parent_id IN categoryIds (자식)
             Subquery<Long> subquery = query.subquery(Long.class);
             Root<Category> categoryRoot = subquery.from(Category.class);
             subquery.select(categoryRoot.get("id"))
-                    .where(cb.equal(categoryRoot.get("parent").get("id"), categoryId));
+                    .where(cb.or(
+                            categoryRoot.get("id").in(categoryIds),
+                            categoryRoot.get("parent").get("id").in(categoryIds)
+                    ));
 
-            // category.id = categoryId OR category.id IN (자식 id 목록)
-            return cb.or(
-                    cb.equal(root.get("category").get("id"), categoryId),
-                    root.get("category").get("id").in(subquery)
-            );
+            return root.get("category").get("id").in(subquery);
         };
     }
 
-    public static Specification<Product> hasBrand(Long brandId) {
+    public static Specification<Product> hasBrand(List<Long> brandIds) {
         return (root, query, cb) ->
-                brandId == null ? null : cb.equal(root.get("brand").get("id"), brandId);
+                (brandIds == null || brandIds.isEmpty()) ? null
+                        : root.get("brand").get("id").in(brandIds);
     }
 
     // ── 칼로리 ───────────────────────────────────────────────────────────────────

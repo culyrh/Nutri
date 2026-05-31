@@ -13,8 +13,8 @@ import java.util.List;
 public class ProductSearchRequest {
 
     private String keyword;
-    private Long categoryId;
-    private Long brandId;
+    private List<Long> categoryIds;
+    private List<Long> brandIds;
 
     // 칼로리
     private BigDecimal minCalories;
